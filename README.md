@@ -44,7 +44,7 @@ Discord セッションに使うプロジェクトのディレクトリで、プ
 公式の Discord プラグインを使っていた場合は無効にしてください。同じトークンで Gateway 接続が 2 本になり、返信が二重になります。
 
 ```sh
-claude plugin marketplace add ryuki-imachi/claude-plugins
+claude plugin marketplace add umitsu-tech/claude-plugins
 cd <Discord セッションに使うプロジェクト>
 claude plugin install discord-bot@ryuki-plugins --scope project
 ```

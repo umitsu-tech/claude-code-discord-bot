@@ -6,7 +6,7 @@
 
 ## issue との対応
 
-2026-09-03 に GitHub の issue に切り出した。作業はこちらを正とする（https://github.com/ryuki-imachi/claude-code-discord-bot/issues）。
+2026-09-03 に GitHub の issue に切り出した。作業はこちらを正とする（https://github.com/umitsu-tech/claude-code-discord-bot/issues）。
 
 | issue | 内容 | この文書の節 | 推奨モデル |
 | --- | --- | --- | --- |
@@ -145,7 +145,7 @@ discord-workspace の `enabledPlugins` のキーと CLAUDE.md の参照、再イ
 - 済（2026-09-03）: リポジトリを Public に切り替えた。公式プラグインの `server.ts` もフォークして
   プレゼンス更新を統合し、Gateway 接続を 1 本にまとめた
 - ローカルの marketplace 登録をディレクトリ参照から GitHub 経由に切り替える
-  （`claude plugin marketplace add ryuki-imachi/claude-code-discord-bot`）
+  （`claude plugin marketplace add umitsu-tech/claude-code-discord-bot`）
 - Developer Portal で Presence Intent を有効にし、`discord_presence_check.py` で表示を自動確認できるようにする
 
 ## 公開前チェックリスト（権利・個人情報）
@@ -210,7 +210,7 @@ git branch -D main && git branch -m main
 - `original-tools/docs/design.md` などに個人サーバーの情報が無いか読む
   → 済（2026-09-03）: `mcp/server-admin/docs/design.md` と `mcp/server-admin/README.md` を確認。サーバー名・
   チャンネル名の一覧・実際の ID は無く、技術的な設計の記述のみだったので変更なし
-- README のセットアップ手順を GitHub 経由（`claude plugin marketplace add ryuki-imachi/claude-code-discord-bot`）を
+- README のセットアップ手順を GitHub 経由（`claude plugin marketplace add umitsu-tech/claude-code-discord-bot`）を
   第一の方法にし、ローカルパスでの登録は「開発するとき」の方法として後ろに回す
   → 済（2026-09-03）
 - `qiita-article/` の画像は記事用なので公開リポジトリに入れない

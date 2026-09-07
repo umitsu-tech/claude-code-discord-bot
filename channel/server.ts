@@ -4,7 +4,7 @@
  *
  * Forked from anthropics/claude-plugins-official, external_plugins/discord (version 0.0.4),
  * Copyright (c) Anthropic. Licensed under the Apache License, Version 2.0 (see ./LICENSE).
- * Modifications by ryuki-imachi (2026-09-03):
+ * Modifications by umitsu-tech (2026-09-03):
  *   - skill names /discord:access -> /discord-bot:access (plugin namespace)
  *   - presence.ts: show Claude Code context usage in the bot's activity (startPresence on clientReady)
  *   - 'ready' -> 'clientReady' (discord.js 14.27 deprecation)
