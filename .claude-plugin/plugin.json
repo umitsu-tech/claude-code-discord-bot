@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "discord-bot",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "あなたの Bot の中身。Claude Code の Discord チャンネルセッションを Discord 側から管理する。/ctx でコンテキスト使用量を返し、/clear で tmux 経由に /clear を送って完了通知し、Bot のステータスに使用量を常時表示する",
   "author": {
     "name": "ryuki-imachi",
