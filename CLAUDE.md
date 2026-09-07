@@ -16,7 +16,7 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 - issue には推奨モデルをラベルで付けてある（`model:sonnet` / `model:opus` / `model:fable`）。ラベルより上のモデルで
   やる分には構わない。着手時にそのモデルで難しいと感じたら、無理に進めず issue にコメントを残して止める
 - 着手時に issue の「やること」を読み、完了時に受け入れ条件を実際に確認してから PR を出す。PR 本文に `Closes #<番号>` を書く
-- 変更したら `.claude-plugin/plugin.json` と `.claude-plugin/marketplace.json` の version を上げてコミットし、
+- 変更したら `.claude-plugin/plugin.json` の version を上げてコミットし、
   discord-workspace で `claude plugin update discord-bot@ryuki-plugins --scope project` → Discord セッションで `/reload-plugins`
   `/reload-plugins` で入れ替わるのはスキルとフックだけ。channel/ や mcp/ のコード、commands.json を変えたときは
   セッションを再起動する（`discord-start --resume <session-id>`）。再起動しないと古いコードが動き続ける
@@ -45,5 +45,6 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
   フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。
   Discord 側の動作確認は 2026-09-03 19:50 に完了（通常メッセージ、/ctx と /task のスラッシュコマンドで結果が投稿されることを確認）
 - リモート: https://github.com/ryuki-imachi/claude-code-discord-bot（2026-09-03 に Public 化）。
+  マーケットプレイス `ryuki-plugins` の定義は 2026-09-07 に https://github.com/ryuki-imachi/claude-plugins へ移した（Issue #57）。
   ローカルの marketplace 登録はディレクトリ参照のままで、GitHub 経由には切り替えていない
 - 関連リソース: discord-workspace の `memory/tasks.md`（台帳の入口）と `docs/discord-context-control.md`（設計メモ）

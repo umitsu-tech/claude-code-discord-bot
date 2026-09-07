@@ -3,7 +3,7 @@
 ## 更新のしかた
 
 インストール時にプラグインは `~/.claude/plugins/cache/ryuki-plugins/discord-bot/<version>/` へコピーされます。
-このリポジトリを編集してコミットしたら、`plugin.json` と `marketplace.json` の `version` を上げてから反映します。
+このリポジトリを編集してコミットしたら、`plugin.json` の `version` を上げてから反映します。マーケットプレイス `ryuki-plugins` の定義（`marketplace.json`）は https://github.com/ryuki-imachi/claude-plugins にあります。
 
 ```sh
 cd <Discord セッションに使うプロジェクト>
@@ -25,7 +25,6 @@ channel サーバーの元になった公式プラグインは `discord@claude-p
 
 ```
 .claude-plugin/plugin.json          マニフェスト
-.claude-plugin/marketplace.json     このディレクトリをローカル marketplace として登録するための定義
 .mcp.json                           MCP サーバーの登録（discord = channel サーバー、server-admin = サーバー管理）
 channel/                            Discord channel サーバー（公式プラグインのフォーク、Apache-2.0）
   server.ts                         送受信・アクセス制御・権限中継（上流 0.0.4 + 改変）
