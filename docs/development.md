@@ -3,7 +3,7 @@
 ## 更新のしかた
 
 インストール時にプラグインは `~/.claude/plugins/cache/ryuki-plugins/discord-bot/<version>/` へコピーされます。
-このリポジトリを編集してコミットしたら、`plugin.json` の `version` を上げてから反映します。マーケットプレイス `ryuki-plugins` の定義（`marketplace.json`）は https://github.com/ryuki-imachi/claude-plugins にあります。
+このリポジトリを編集してコミットしたら、`plugin.json` の `version` を上げてから反映します。マーケットプレイス `ryuki-plugins` の定義（`marketplace.json`）は https://github.com/umitsu-tech/claude-plugins にあります。
 
 ```sh
 cd <Discord セッションに使うプロジェクト>

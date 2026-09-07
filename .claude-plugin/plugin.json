@@ -4,11 +4,11 @@
   "version": "0.7.2",
   "description": "あなたの Bot の中身。Claude Code の Discord チャンネルセッションを Discord 側から管理する。/ctx でコンテキスト使用量を返し、/clear で tmux 経由に /clear を送って完了通知し、Bot のステータスに使用量を常時表示する",
   "author": {
-    "name": "ryuki-imachi",
-    "email": "195699591+ryuki-imachi@users.noreply.github.com"
+    "name": "umitsu-tech",
+    "email": "195699591+umitsu-tech@users.noreply.github.com"
   },
-  "repository": "https://github.com/ryuki-imachi/claude-code-discord-bot",
-  "homepage": "https://github.com/ryuki-imachi/claude-code-discord-bot",
+  "repository": "https://github.com/umitsu-tech/claude-code-discord-bot",
+  "homepage": "https://github.com/umitsu-tech/claude-code-discord-bot",
   "keywords": [
     "discord",
     "channel",

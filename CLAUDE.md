@@ -10,7 +10,7 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 - Discord セッションの起動・終了・再起動（`discord-start`、`/exit`、`/reload-plugins` の送信、管理者設定の作成）は開発者が自分の
   ターミナルで行う。Claude はコマンドを提示するだけで、tmux 経由で他のセッションを操作しない（2026-09-03 に検証目的で
   Claude が操作したのは例外。以後は開発者が主体）
-- 作業は GitHub の issue 単位で進める（https://github.com/ryuki-imachi/claude-code-discord-bot/issues）。
+- 作業は GitHub の issue 単位で進める（https://github.com/umitsu-tech/claude-code-discord-bot/issues）。
   issue ごとに `main` から `issue-<番号>-<短い英語>` のブランチを切り、終わったら PR を作って `main` にマージする。
   `main` に直接コミットしない
 - issue には推奨モデルをラベルで付けてある（`model:sonnet` / `model:opus` / `model:fable`）。ラベルより上のモデルで
@@ -44,7 +44,7 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 - 現在の稼働: 管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。
   フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。
   Discord 側の動作確認は 2026-09-03 19:50 に完了（通常メッセージ、/ctx と /task のスラッシュコマンドで結果が投稿されることを確認）
-- リモート: https://github.com/ryuki-imachi/claude-code-discord-bot（2026-09-03 に Public 化）。
-  マーケットプレイス `ryuki-plugins` の定義は 2026-09-07 に https://github.com/ryuki-imachi/claude-plugins へ移した（Issue #57）。
+- リモート: https://github.com/umitsu-tech/claude-code-discord-bot（2026-09-03 に Public 化）。
+  マーケットプレイス `ryuki-plugins` の定義は 2026-09-07 に https://github.com/umitsu-tech/claude-plugins へ移した（Issue #57）。
   ローカルの marketplace 登録はディレクトリ参照のままで、GitHub 経由には切り替えていない
 - 関連リソース: discord-workspace の `memory/tasks.md`（台帳の入口）と `docs/discord-context-control.md`（設計メモ）
