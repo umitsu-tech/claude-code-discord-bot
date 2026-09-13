@@ -33,6 +33,9 @@ channel/                            Discord channel サーバー（公式プラ�
   session-control.ts                /model・/effort・/restart をサーバー側で処理（ペイン特定・send-keys・監視・完了通知）
   ACCESS.md                         アクセス制御の説明（上流をスキル名だけ書き換えたもの）
   UPSTREAM-README.md                上流の README（原文のまま）
+voice/                              ボイスチャンネル用の Node プロセス（`@discordjs/voice` が Bun で動かないので channel と分けてある）
+  index.js                          voice.sock で待ち受けて入退室する本体。Gateway は持たず channel から借りる
+  dev/fake-gateway.js               channel の代わりに Gateway 中継だけを行う開発用スクリプト
 mcp/server-admin/                   サーバー管理 MCP（Python、uv）
 skills/access/ skills/configure/    アクセス管理とトークン設定（上流のスキルを名前空間だけ変えたもの）
 skills/ctx/                         /discord-bot:ctx
@@ -51,8 +54,24 @@ docs/diagrams/                      図の元ファイル（.drawio）と書き�
 
 状態ファイルは `~/.claude/discord-bot/` に置きます。`/clear` 用が `pending-clear.json` と `clear-notify.log`、
 `/restart` 用が `restart-done.json`（完了マーカー。起動し直した channel サーバーが読んで消す）と
-`restart.log`（補助スクリプトと `claude update` の記録）です。
+`restart.log`（補助スクリプトと `claude update` の記録）、voice プロセス用が `voice.sock`（channel との
+やりとりに使う Unix ドメインソケット）と `voice.log` です。
 Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`（`.env`、`access.json`）に置きます。
+
+## voice プロセスの動作確認
+
+`voice/` は Node で動かします（Bun では `@discordjs/voice` が動きません）。channel サーバー側の中継が
+入るまでは、`voice/dev/fake-gateway.js` が channel の代わりに Gateway 中継だけを行うので、これで
+入退室を確認できます。ギルド ID とボイスチャンネル ID は引数か環境変数で渡します。
+
+```sh
+cd voice && npm install
+node index.js &                                                  # 待ち受けを開始
+node dev/fake-gateway.js <ギルドID> <ボイスチャンネルID> [滞在秒数]  # join → Ready → leave まで自動で行う
+```
+
+`fake-gateway.js` は Bot トークンを `~/.claude/channels/discord/.env` から読みます。常駐セッションと
+Gateway 接続が一時的に 2 本になりますが、テキスト系のインテントを持たせていないので二重返信は起きません。
 
 ## 移植の経緯
 

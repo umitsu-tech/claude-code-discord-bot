@@ -31,7 +31,7 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 
 ## 現在の状況
 
-- 最終更新: 2026-09-05
+- 最終更新: 2026-09-14
 - 完了済み: issue #1〜#9 をすべてクローズ。サーバー管理 MCP の取り込み、discord-workspace の切り替え、
   setup-channel とフックの移植、ギルド ID 自動判定、ダンプ掃除、公式 Discord プラグインのフォーク（channel/、Apache-2.0）と
   プレゼンス統合、スラッシュコマンド /ctx /clear、ワークスペース用コマンド（追加定義 ~/.claude/discord-bot/commands.json）、公開準備
@@ -40,6 +40,10 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
   どちらも channel サーバー側で処理する方式（session-control.ts が tmux ペインへ send-keys、/restart は
   scripts/restart-helper.sh を切り離して起動）。スキル方式（PR #49）とスーパーバイザー方式（PR #48）は取り下げた。
   実機確認は 2026-09-05 に完了（手順は docs/verify-0.7.1.md）
+- 進行中（2026-09-14）: ボイスチャンネル対応（親 issue #61）。実装は #62〜#67 に分解済み。
+  #62（voice プロセスの骨格）で `voice/` を新設した。Node で動く別プロセスが Unix ドメインソケット
+  `~/.claude/discord-bot/voice.sock` で待ち受け、Gateway は channel サーバーの 1 本を借りて入退室する。
+  channel 側の中継は #65、音声受信は #63、文字起こしは #64。プラグインの version 上げは #67 でまとめて行う
 - 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り（スキル経由でクリア前に要点を保存できる利点を残す）。開発フラグの不具合は anthropics/claude-code#82939 で既報のため報告しない（2026-09-03 判断）
 - 現在の稼働: 管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。
   フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。
