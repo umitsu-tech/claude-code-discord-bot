@@ -44,6 +44,9 @@ const MAX_LINE_BYTES = 64 * 1024
 // 終了時の後始末に使う上限。これを超えたら諦めて抜ける。
 const SHUTDOWN_TIMEOUT_MS = 3_000
 
+// 置き換えた古いクライアントに superseded を書き終えるのを待つ上限。
+const SUPERSEDE_TIMEOUT_MS = 1_000
+
 mkdirSync(STATE_DIR, { recursive: true })
 
 function log(...parts) {
@@ -79,8 +82,11 @@ function flushWrites() {
   return new Promise(resolve => writeWaiters.push(resolve))
 }
 
-/** 1 メッセージ = 1 行の JSON。送り先が使えなければ false を返す。 */
-function sendTo(socket, message) {
+/**
+ * 1 メッセージ = 1 行の JSON。送り先が使えなければ false を返す。
+ * `onWritten` を渡すと、その 1 行を書き終えた時点で呼ばれる。
+ */
+function sendTo(socket, message, onWritten) {
   if (!socket || socket.destroyed || !socket.writable) {
     log('warn: 送信先のクライアントが使えないので破棄しました:', JSON.stringify(message).slice(0, 200))
     return false
@@ -89,8 +95,27 @@ function sendTo(socket, message) {
   socket.write(`${JSON.stringify(message)}\n`, () => {
     pendingWrites--
     if (pendingWrites === 0) for (const resolve of writeWaiters.splice(0)) resolve()
+    onWritten?.()
   })
   return true
+}
+
+/**
+ * 置き換えられた古いクライアントに `superseded` を知らせてから閉じる。
+ * 黙って閉じると channel 側が切断とみなして繋ぎ直すので、channel サーバーが 2 本立ったときに
+ * 互いを追い出し合い続けてしまう。これを受けた側は自動再接続をやめる約束にしてある。
+ */
+function supersede(socket) {
+  let closed = false
+  const close = () => {
+    if (closed) return
+    closed = true
+    clearTimeout(timer)
+    socket.end()
+  }
+  // 書き終えたら閉じるが、相手が読まずに詰まったまま居座らないよう上限を設ける。
+  const timer = setTimeout(close, SUPERSEDE_TIMEOUT_MS)
+  if (!sendTo(socket, { t: 'superseded' }, close)) close()
 }
 
 /** 要求に紐づかない送信（sendPayload、#63 以降の transcript）は最新のクライアント宛て。 */
@@ -408,8 +433,8 @@ function onConnection(socket) {
   // 新しい channel が繋いできたら古いほうは明示的に閉じる。/restart で新旧が重なる期間に
   // 両方から指示が飛んでくると、どちらの Gateway を借りているのか分からなくなるため。
   for (const old of previous) {
-    log('新しい接続に置き換えるので、古いクライアントを閉じます')
-    old.end()
+    log('新しい接続に置き換えるので、古いクライアントに superseded を送って閉じます')
+    supersede(old)
   }
 
   // TCP と同じでソケットはバイト列なので、改行までを 1 メッセージとして自分で区切る。
