@@ -4,31 +4,50 @@
  *
  * プロトコル（改行区切り JSON、詳細は #61 の最後のコメントと、レビューを受けた補足コメント）
  *   channel -> voice: { t: 'join' | 'leave' | 'status', requestId, ... } / { t: 'gateway', event, d }
- *   voice -> channel: { t: 'sendPayload', d } / { t: 'joined' | 'left' | 'status' | 'error', requestId, ... } / { t: 'transcript', ... }
+ *   voice -> channel: { t: 'sendPayload', d } / { t: 'joined' | 'left' | 'status' | 'error', requestId, ... } /
+ *                      { t: 'transcript', ... } / { t: 'superseded' }
  * voice 側がソケットを listen し、channel 側が繋ぎに行く。requestId は channel 側が採番し、
  * join/leave/status の応答はそれで突き合わせる。transcript と sendPayload は要求に紐づかない。
  * status の state は 'idle' | 'joining' | 'joined' の3値、channelId は未入室のとき null。
+ * voice は最後に繋いだクライアントを正とし、新しいクライアントが繋いだら古いソケットに
+ * { t: 'superseded' } を送ってから end() する（#62/#69 側の実装。/restart で新旧 channel が
+ * 重なる期間の混線防止）。superseded を受けた側は次の join() まで自動再接続しない
  *
  * 接続まわりの方針
  *   - voice プロセスの起動（node <plugin root>/voice/index.js を detached + unref）は join() が
  *     呼ばれたときだけ行う。channel サーバー起動時には何もしない
  *   - ソケットが無い/繋がらない場合、join() 済み（voiceRequested）であれば再接続のたびに起動を試みる
  *     （SPAWN_COOLDOWN_MS 未満の間隔では二重起動しない）。ただし連続 MAX_SPAWN_ATTEMPTS 回まで —
- *     voice が起動直後に落ち続けるケースで spawn が暴走しないようにする。接続に成功したら数え直す。
- *     上限に達したら、その時点の join を reject して以後の自動 spawn を止める（次の join() で仕切り直す）
- *   - 接続が切れたら 1s → 2s → ... → 最大 30s の指数バックオフで再接続を続ける
+ *     voice が起動直後に落ち続けるケースで spawn が暴走しないようにする。
+ *     カウンタをリセットするのは「voice から何か応答が 1 回でも返ってきたとき」（connect 成功しただけ
+ *     ではリセットしない — listen した直後に死ぬプロセスだと connect は毎回成功してしまうため）と
+ *     「明示的に join() が呼ばれたとき」の 2 つだけ。上限に達したら、その時点の保留中の要求（join
+ *     など）をまとめて reject し、以後の自動 spawn を止める。次に join() が呼ばれたら、カウンタと
+ *     一緒に reconnectTimer もクリアして backoffMs を初期値に戻し、仕切り直す
+ *   - 接続が切れたら 1s → 2s → ... → 最大 30s の指数バックオフで再接続を続ける。ただし voice から
+ *     { t: 'superseded' } を受けたあとは、次に join() が呼ばれるまで再接続を止める（新旧 channel が
+ *     1 秒周期で voice を奪い合うのを防ぐ）
  *   - leave() が成功したら voiceRequested を false に戻す。voice を手で止めたときに channel が
  *     勝手に再起動しないようにするため
+ *   - ENOENT / ECONNREFUSED（voice が居ない/起動待ち）以外の接続エラー（EACCES など、リトライしても
+ *     直らない類）は、保留中の要求をその場でそのエラーで reject する
  *
  * 要求のタイムアウトについて
  *   voice の起動待ち（cold start）を計測に含めると、起動に時間がかかるだけで join が失敗してしまう。
  *   そのためタイマーは「ソケットに書き込めた時点」（sock.write のコールバック）から起こす。
  *   join は 30 秒、leave/status は 20 秒。ただし voiceRequested が false（誰も接続を試みていない）
- *   状態で要求を投げた場合は、繋がる見込みが薄いので従来どおり要求時点からタイマーを起こす
+ *   状態で要求を投げた場合は、繋がる見込みが薄いので従来どおり要求時点からタイマーを起こす。
+ *   ソケットが close したときは、すでに書き込み済みで応答待ちの要求はタイムアウトを待たずに
+ *   「接続が切れた」で即 reject する（書き込めていない = writeQueue に残っているものはそのまま残す）
  *
- * 再接続後の状態同期
- *   close で activeChannelId_ を null にしたあと、再接続（2 回目以降の connect）に成功したら
- *   status を送り、state が 'joined' なら activeChannelId_ を復元する
+ * 入室状態の同期
+ *   activeChannelId_ は 3 つの経路から更新される。
+ *     1. join/leave の応答（joined で設定、left や join の失敗で解除）
+ *     2. status の応答（接続成功時は初回を含め毎回 status を送って同期する。leave が失敗したときも
+ *        「実際にはまだ入室中かもしれない」ので status を送って同期する。通常の status() 呼び出しの
+ *        応答でも同様に同期する）
+ *     3. Bot 自身の VOICE_STATE_UPDATE（Discord 自身が報告してくる正の情報。voice が Gateway 切断で
+ *        自発的に idle に戻っても、これで channel 側の一時許可がすぐ外れる）
  *
  * Gateway 中継について
  *   discord.js 14.27 の WebSocketManager#attachEvents（node_modules/discord.js/src/client/websocket/
@@ -37,13 +56,17 @@
  *     this.emit(data.t, data.d, shardId)       // client.ws.on(data.t, ...) で同じものを d だけ受け取れる
  *   の順で発火する。挙動としてはどちらも使えるが、後者は GatewayDispatchEvents（discord-api-types。
  *   channel/package.json の直接依存ではなく discord.js 経由の間接依存）を追加 import する必要がある。
- *   client.on('raw', ...) は discord.js 自身が Events.Raw として公開している安定 API で追加 import が
- *   要らないため、こちらを採用する。VOICE_STATE_UPDATE は Bot 自身（data.d.user_id === client.user.id）の
- *   ものだけを転送する。gateway イベントは未接続時に溜めても再送する意味が無いので、キューには入れず
- *   接続していないときはそのまま捨てる
+ *   client.on('raw', ...) は discord.js が実行時に Events.Raw = 'raw' として emit しているイベントだが、
+ *   typings/index.d.ts の ClientEvents にはキーが無い（型定義からは外れている）。ただし Client#on には
+ *   ClientEvents に無いイベント名向けのフォールバックのオーバーロード（listener の引数が any[] になる）
+ *   があるので、キャストや型の緩和なしでそのまま tsc を通る。追加 import が要らないぶんこちらを採用した。
+ *   VOICE_STATE_UPDATE は Bot 自身（data.d.user_id === client.user.id）のものだけを転送する。
+ *   gateway イベントは未接続時に溜めても再送する意味が無いので、キューには入れず接続していないときは
+ *   そのまま捨てる
  *
  * voice からの sendPayload はローカルの信頼できるプロセスとはいえ、Gateway へ任意のコマンドを
- * 流す口を無条件に開けたくないので op === 4（Voice State Update）だけ転送する
+ * 流す口を無条件に開けたくないので op === 4（Voice State Update）だけ転送する。guild_id が無い/
+ * 該当 shard が見つからないときはフォールバックせず、送らずにログだけ残す
  *
  * 環境変数
  *   DISCORD_BOT_STATE_DIR   状態ファイルの置き場（既定 ~/.claude/discord-bot）。ソケットは
@@ -93,6 +116,8 @@ type PendingEntry = {
   reject: (e: Error) => void
   timer: ReturnType<typeof setTimeout> | null
   kind: PendingKind
+  /** sock.write() のコールバックが呼ばれたか。true のものだけ close で即 reject する */
+  written: boolean
 }
 type QueuedRequest = { requestId: string; line: string; timeoutMs: number }
 
@@ -102,13 +127,13 @@ function log(msg: string): void {
 
 let sock: Socket | null = null
 let connecting = false
-let everConnected = false
-let recvBuffer = ''
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let backoffMs = RECONNECT_MIN_MS
 let writeQueue: QueuedRequest[] = []
 /** join() が一度でも呼ばれたか。true の間だけ再接続時に voice プロセスの起動を試みる */
 let voiceRequested = false
+/** { t: 'superseded' } を受けたか。true の間は次の join() まで自動再接続しない */
+let supersededByAnother = false
 let lastSpawnAt = 0
 let spawnFailures = 0
 let spawnExhausted = false
@@ -127,6 +152,9 @@ export function initVoiceControl(client: Client, onTranscript: (t: TranscriptEve
   client.on('raw', (data: { t?: string; d?: any }) => {
     if (data.t === 'VOICE_STATE_UPDATE') {
       if (!client.user || data.d?.user_id !== client.user.id) return // Bot 自身の状態更新だけ中継する
+      // Discord 自身が報告してくる正の情報。voice 側の自己申告（joined/left/status）とは別経路で
+      // activeChannelId_ を同期する。channel_id が null ならボイスチャンネルに居ない
+      activeChannelId_ = data.d?.channel_id ?? null
       sendGatewayEvent('VOICE_STATE_UPDATE', data.d)
     } else if (data.t === 'VOICE_SERVER_UPDATE') {
       sendGatewayEvent('VOICE_SERVER_UPDATE', data.d)
@@ -144,6 +172,13 @@ export async function join(guildId: string, channelId: string, userIds: string[]
   voiceRequested = true
   spawnFailures = 0
   spawnExhausted = false
+  supersededByAnother = false
+  // 上限到達や superseded で止まっていた再接続を、明示的な join() で仕切り直す
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  backoffMs = RECONNECT_MIN_MS
   const res = await sendRequest('join', { guildId, channelId, userIds }, JOIN_TIMEOUT_MS)
   return { guildId: res.guildId, channelId: res.channelId }
 }
@@ -153,9 +188,25 @@ export async function leave(): Promise<void> {
   voiceRequested = false // 手で止めたときに再接続のたびに再起動しないように
 }
 
+/** state/channelId で activeChannelId_ を同期しつつ、正規化した形を返す */
 export async function status(): Promise<StatusResult> {
   const res = await sendRequest('status', {}, REQUEST_TIMEOUT_MS)
-  return { state: res.state, channelId: res.channelId ?? null, whisper: res.whisper }
+  const result: StatusResult = { state: res.state, channelId: res.channelId ?? null, whisper: res.whisper }
+  applyStatusResult(result)
+  return result
+}
+
+function applyStatusResult(res: StatusResult): void {
+  activeChannelId_ = res.state === 'joined' && res.channelId ? res.channelId : null
+}
+
+/** status を送って activeChannelId_ を同期する。失敗してもログを残すだけ（呼び出し元を止めない） */
+async function syncStatus(reason: string): Promise<void> {
+  try {
+    await status() // status() 自身が activeChannelId_ を同期する
+  } catch (e) {
+    log(`status 同期に失敗したよ（${reason}）: ${e}`)
+  }
 }
 
 // --- リクエスト/応答 -------------------------------------------------------
@@ -163,7 +214,7 @@ export async function status(): Promise<StatusResult> {
 function sendRequest(t: PendingKind, extra: Record<string, unknown>, timeoutMs: number): Promise<any> {
   const requestId = `${Date.now()}-${++requestSeq}`
   return new Promise((resolve, reject) => {
-    pending.set(requestId, { resolve, reject, timer: null, kind: t })
+    pending.set(requestId, { resolve, reject, timer: null, kind: t, written: false })
     enqueueRequest(requestId, JSON.stringify({ t, requestId, ...extra }), timeoutMs)
   })
 }
@@ -186,9 +237,17 @@ function startTimeout(requestId: string, timeoutMs: number): void {
   }, timeoutMs)
 }
 
+/** 実際に書き込めた（sock.write のコールバック）ときに呼ぶ。written を立ててからタイマーを起こす */
+function onWritten(requestId: string, timeoutMs: number): void {
+  const entry = pending.get(requestId)
+  if (!entry) return
+  entry.written = true
+  startTimeout(requestId, timeoutMs)
+}
+
 function enqueueRequest(requestId: string, line: string, timeoutMs: number): void {
   if (sock && !sock.destroyed) {
-    sock.write(line + '\n', () => startTimeout(requestId, timeoutMs))
+    sock.write(line + '\n', () => onWritten(requestId, timeoutMs))
     return
   }
   writeQueue.push({ requestId, line, timeoutMs })
@@ -223,23 +282,26 @@ function tryConnect(): void {
   if (sock || connecting) return
   connecting = true
   const s = createConnection(SOCK_PATH)
+  // ソケットごとのローカル変数にする。切断時に不完全な行が残ったまま次の接続の
+  // 先頭行と連結されるのを防ぐ（以前はモジュール変数で共有していた）
+  let recvBuffer = ''
 
   s.once('connect', () => {
     connecting = false
     backoffMs = RECONNECT_MIN_MS
-    spawnFailures = 0
-    spawnExhausted = false
-    const isReconnect = everConnected
-    everConnected = true
+    // spawnFailures/spawnExhausted はここではリセットしない — listen した直後に落ちるプロセスだと
+    // connect 自体は毎回成功してしまうため。リセットは「voice から応答が返ってきたとき」と
+    // 「明示的な join()」だけ
     sock = s
     log('voice プロセスに接続したよ')
     for (const item of writeQueue.splice(0)) {
       // 応答を待つのをすでに諦めた古い要求（join のタイムアウト後など）は送らない。
       // 再接続した先の voice に古い join がそのまま届いて勝手に入室してしまうのを防ぐ
       if (!pending.has(item.requestId)) continue
-      s.write(item.line + '\n', () => startTimeout(item.requestId, item.timeoutMs))
+      s.write(item.line + '\n', () => onWritten(item.requestId, item.timeoutMs))
     }
-    if (isReconnect) void resyncAfterReconnect()
+    // 接続成功時は初回も含めて必ず status を送り、実際の入室状態に同期する
+    void syncStatus('接続直後')
   })
 
   s.on('data', (chunk: Buffer) => {
@@ -255,9 +317,16 @@ function tryConnect(): void {
   s.once('error', err => {
     connecting = false
     const code = (err as NodeJS.ErrnoException).code
-    if (!voiceRequested || (code !== 'ENOENT' && code !== 'ECONNREFUSED')) return
+    if (code !== 'ENOENT' && code !== 'ECONNREFUSED') {
+      // 権限エラーなど、リトライしても直らない類のエラー。保留中の要求をその場で reject する
+      // （バックオフでの再接続自体は close ハンドラ側で続ける — 外部要因が直る可能性もあるため）
+      const message = `voice プロセスへの接続に失敗したよ（${code ?? err.message}）`
+      log(message)
+      rejectAllPending(new Error(message))
+      return
+    }
+    if (!voiceRequested || spawnExhausted) return
     // ソケットが無い（voice が起きていない）/ 繋がらない（起動直後でまだ listen していない）
-    if (spawnExhausted) return
     if (spawnFailures >= MAX_SPAWN_ATTEMPTS) {
       spawnExhausted = true
       const message = `voice プロセスの起動を ${MAX_SPAWN_ATTEMPTS} 回試したけど繋がらなかったよ。${VOICE_LOG_FILE} を確認してね`
@@ -275,25 +344,22 @@ function tryConnect(): void {
   s.once('close', () => {
     connecting = false
     if (sock === s) sock = null
-    activeChannelId_ = null // voice との接続が切れた = 通話にも居られない（再接続後に resync で復元する）
+    activeChannelId_ = null // voice との接続が切れた = 通話にも居られない（再接続後に status で復元する）
+    // 書き込み済みで応答待ちのものは、タイムアウトを待たずに「接続が切れた」で即 reject する。
+    // まだ書き込めていない（writeQueue に残っている）ものはそのまま残す — 再接続後にまとめて判断する
+    for (const requestId of [...pending.keys()]) {
+      const entry = pending.get(requestId)
+      if (entry?.written) {
+        takePending(requestId)
+        entry.reject(new Error('voice との接続が切れたよ'))
+      }
+    }
     scheduleReconnect()
   })
 }
 
-/** 再接続後、voice の実際の状態を確認して activeChannelId_ を復元する */
-async function resyncAfterReconnect(): Promise<void> {
-  try {
-    const res = await status()
-    if (res.state === 'joined' && res.channelId) {
-      activeChannelId_ = res.channelId
-      log(`再接続後に入室状態を復元したよ（channelId=${res.channelId}）`)
-    }
-  } catch (e) {
-    log(`再接続後の status 確認に失敗したよ: ${e}`)
-  }
-}
-
 function scheduleReconnect(): void {
+  if (supersededByAnother) return // 別の channel サーバーが正になった。次の join() まで手を出さない
   if (reconnectTimer) return
   const wait = backoffMs
   backoffMs = Math.min(backoffMs * 2, RECONNECT_MAX_MS)
@@ -342,7 +408,21 @@ function handleLine(line: string): void {
     return
   }
 
+  // voice から何か返ってきた = 少なくとも今は生きて話せている。spawn の連続失敗カウントをリセットする
+  // （connect 成功時にはリセットしない。listen 直後に落ちるプロセスだと connect 自体は毎回
+  // 成功してしまうため、"応答が返ってきた" ことを生存の証拠にする）
+  spawnFailures = 0
+  spawnExhausted = false
+
   const t = msg.t
+  if (t === 'superseded') {
+    // 別の channel サーバーが新しく繋いできた。voice はこのあとソケットを end() する。
+    // 次に join() が呼ばれるまで自動再接続しない（新旧 channel が voice を奪い合わないように）
+    log('別の channel サーバーが voice に接続したよ。次の join() まで再接続しないよ')
+    supersededByAnother = true
+    activeChannelId_ = null
+    return
+  }
   if (t === 'transcript') {
     handleTranscript(msg)
     return
@@ -357,10 +437,14 @@ function handleLine(line: string): void {
 
   if (t === 'joined') activeChannelId_ = msg.channelId ?? null
   else if (t === 'left') activeChannelId_ = null
-  else if (t === 'error' && peeked && (peeked.kind === 'join' || peeked.kind === 'leave')) {
-    // status の失敗では入室状態の前提を崩さない。join/leave の失敗だけ、入室していない扱いに戻す
+  else if (t === 'error' && peeked?.kind === 'join') {
+    // join の失敗は素直に「入室していない」扱いにする
     activeChannelId_ = null
+  } else if (t === 'error' && peeked?.kind === 'leave') {
+    // 退室に失敗したなら実際はまだ入室中かもしれない。決め打ちで消さず status で実態に合わせる
+    void syncStatus('leave の失敗')
   }
+  // status の error では activeChannelId_ に触れない（次の status/VOICE_STATE_UPDATE に任せる）
 
   if (!requestId) return
   const entry = takePending(requestId)
@@ -381,7 +465,8 @@ function handleTranscript(msg: any): void {
 
 /** voice からの sendPayload（Gateway コマンド）を該当ギルドの shard へ流す。
  *  ローカルの信頼できるプロセスとはいえ、Gateway へ任意のコマンドを流す口を無条件に開けたくないので
- *  op === 4（Voice State Update）以外は捨てる */
+ *  op === 4（Voice State Update）以外は捨てる。guild_id が無い/該当 shard が見つからないときも
+ *  フォールバックせず、送らずにログだけ残す */
 async function forwardSendPayload(payload: { op: number; d: any } | undefined): Promise<void> {
   if (!client_ || !payload) return
   if (payload.op !== 4) {
@@ -389,9 +474,13 @@ async function forwardSendPayload(payload: { op: number; d: any } | undefined): 
     return
   }
   const guildId = payload.d?.guild_id
-  const shard = (guildId ? client_.guilds.cache.get(guildId)?.shard : undefined) ?? client_.ws.shards.first()
+  if (!guildId) {
+    log('sendPayload を送れなかったよ（guild_id が無い）')
+    return
+  }
+  const shard = client_.guilds.cache.get(guildId)?.shard
   if (!shard) {
-    log(`sendPayload を送れなかったよ（shard が見つからない, guildId=${guildId ?? '-'}）`)
+    log(`sendPayload を送れなかったよ（shard が見つからない, guildId=${guildId}）`)
     return
   }
   shard.send(payload)

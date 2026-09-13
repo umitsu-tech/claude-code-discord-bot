@@ -423,7 +423,10 @@ async function fetchTextChannel(id: string) {
 // Outbound gate — tools can only target chats the inbound gate would deliver
 // from. DM channel ID ≠ user ID, so we inspect the fetched channel's type.
 // Thread → parent lookup mirrors the inbound gate.
-async function fetchAllowedChannel(id: string) {
+// allowActiveVoice は reply だけが渡す。fetch_messages / react / edit_message /
+// download_attachment まで一時許可を効かせると、入室中は VC のテキストチャットの
+// 履歴や添付まで読めてしまうため、返事の送信口だけに絞る
+async function fetchAllowedChannel(id: string, opts: { allowActiveVoice?: boolean } = {}) {
   const ch = await fetchTextChannel(id)
   const access = loadAccess()
   if (ch.type === ChannelType.DM) {
@@ -432,10 +435,10 @@ async function fetchAllowedChannel(id: string) {
   } else {
     const key = ch.isThread() ? ch.parentId ?? ch.id : ch.id
     if (key in access.groups) return ch
-    // Bot が今まさに入室中のボイスチャンネルは、access.groups に無くても一時的に許可する。
+    // Bot が今まさに入室中のボイスチャンネルは、access.groups に無くても一時的に許可する（reply のみ）。
     // 通話の文字起こしへの返事を、そのボイスチャンネル付属のテキストチャットに出すため。
     // 退室すれば voiceActiveChannelId() が null に戻り、この許可も外れる
-    if (id === voiceActiveChannelId()) return ch
+    if (opts.allowActiveVoice && id === voiceActiveChannelId()) return ch
   }
   throw new Error(`channel ${id} is not allowlisted — add via /discord-bot:access`)
 }
@@ -635,7 +638,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         const reply_to = args.reply_to as string | undefined
         const files = (args.files as string[] | undefined) ?? []
 
-        const ch = await fetchAllowedChannel(chat_id)
+        const ch = await fetchAllowedChannel(chat_id, { allowActiveVoice: true })
         if (!('send' in ch)) throw new Error('channel is not sendable')
 
         for (const f of files) {
