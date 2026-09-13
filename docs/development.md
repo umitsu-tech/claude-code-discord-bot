@@ -66,9 +66,12 @@ Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`
 
 ```sh
 cd voice && npm install
-node index.js &                                                  # 待ち受けを開始
+node index.js > ~/.claude/discord-bot/voice.log 2>&1 &           # 待ち受けを開始
 node dev/fake-gateway.js <ギルドID> <ボイスチャンネルID> [滞在秒数]  # join → Ready → leave まで自動で行う
 ```
+
+voice プロセスはログを標準出力にだけ出します。ファイルに残したいときは上のようにリダイレクトしてください
+（channel サーバーから spawn する場合は channel 側が `voice.log` へまとめます）。
 
 `fake-gateway.js` は Bot トークンを `~/.claude/channels/discord/.env` から読みます。常駐セッションと
 Gateway 接続が一時的に 2 本になりますが、テキスト系のインテントを持たせていないので二重返信は起きません。

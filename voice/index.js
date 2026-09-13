@@ -14,13 +14,18 @@
  *
  * プロトコルの定義は Issue #61 のコメントにある。
  *
+ * ログは標準出力にだけ出す。channel サーバーが spawn するときに stdout/stderr を
+ * `~/.claude/discord-bot/voice.log` へリダイレクトするので、ここで同じファイルに書くと二重になる。
+ * 手で起動するときは自分でリダイレクトする（docs/development.md 参照）。
+ *
  * 環境変数
  *   DISCORD_BOT_STATE_DIR  状態ファイルの置き場（既定 ~/.claude/discord-bot）
  */
 import net from 'node:net'
-import { createWriteStream, existsSync, mkdirSync, unlinkSync } from 'node:fs'
+import { lstatSync, mkdirSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import {
   joinVoiceChannel,
   entersState,
@@ -29,20 +34,28 @@ import {
 
 const STATE_DIR = process.env.DISCORD_BOT_STATE_DIR ?? join(homedir(), '.claude', 'discord-bot')
 const SOCKET_PATH = join(STATE_DIR, 'voice.sock')
-const LOG_PATH = join(STATE_DIR, 'voice.log')
 
 // Ready への到達を待つ上限。Gateway の中継を挟むぶん、直結より少し余裕を見てある。
 const READY_TIMEOUT_MS = 20_000
 
+// 1 行の上限。まともなメッセージはせいぜい数百バイトなので、これを超えるのは壊れた送信側とみなす。
+const MAX_LINE_BYTES = 64 * 1024
+
+// 終了時の後始末に使う上限。これを超えたら諦めて抜ける。
+const SHUTDOWN_TIMEOUT_MS = 3_000
+
 mkdirSync(STATE_DIR, { recursive: true })
 
-// ログはファイルに追記しつつ標準出力にも出す。前面で起動したときにそのまま読めるようにするため。
-const logStream = createWriteStream(LOG_PATH, { flags: 'a' })
-
 function log(...parts) {
-  const line = `[${new Date().toISOString()}] ${parts.join(' ')}`
-  logStream.write(`${line}\n`)
-  console.log(line)
+  console.log(`[${new Date().toISOString()}] ${parts.join(' ')}`)
+}
+
+function isObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isId(value) {
+  return typeof value === 'string' && value.length > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -52,25 +65,42 @@ function log(...parts) {
 const clients = new Set()
 
 /**
- * 応答の送り先。複数繋がったら最後に繋いだものを使う。
- * /restart で channel サーバーが入れ替わったとき、新しいほうへ自然に切り替わるようにするため。
+ * 最新のクライアント。要求と gateway イベントはこのソケットから来たものだけを受け付ける。
+ * /restart で channel サーバーが入れ替わるとき、新旧が一瞬重なっても混線しないようにするため。
  */
 let activeClient = null
 
-/** 1 メッセージ = 1 行の JSON。送り先が居なければ false を返す。 */
-function send(message) {
-  const target = activeClient
-  if (!target || target.destroyed) {
-    log('warn: 送信先のクライアントが居ないので破棄しました:', JSON.stringify(message).slice(0, 200))
+// 終了時に「退室の op 4 を書き終えてから抜ける」ために、書き込み中の本数を数えておく。
+let pendingWrites = 0
+const writeWaiters = []
+
+function flushWrites() {
+  if (pendingWrites === 0) return Promise.resolve()
+  return new Promise(resolve => writeWaiters.push(resolve))
+}
+
+/** 1 メッセージ = 1 行の JSON。送り先が使えなければ false を返す。 */
+function sendTo(socket, message) {
+  if (!socket || socket.destroyed || !socket.writable) {
+    log('warn: 送信先のクライアントが使えないので破棄しました:', JSON.stringify(message).slice(0, 200))
     return false
   }
-  target.write(`${JSON.stringify(message)}\n`)
+  pendingWrites++
+  socket.write(`${JSON.stringify(message)}\n`, () => {
+    pendingWrites--
+    if (pendingWrites === 0) for (const resolve of writeWaiters.splice(0)) resolve()
+  })
   return true
 }
 
-function sendError(requestId, message) {
+/** 要求に紐づかない送信（sendPayload、#63 以降の transcript）は最新のクライアント宛て。 */
+function sendToActive(message) {
+  return sendTo(activeClient, message)
+}
+
+function sendError(origin, requestId, message) {
   log('error:', message)
-  send({ t: 'error', requestId, message })
+  sendTo(origin, { t: 'error', requestId, message })
 }
 
 // ---------------------------------------------------------------------------
@@ -90,22 +120,35 @@ function adapterCreator(methods) {
     // op 4（Voice State Update）の送信。自分では Gateway を持たないので中継してもらう。
     // 送り先が居ないときに false を返すと、`@discordjs/voice` 側が接続を Disconnected
     // （reason: AdapterUnavailable）にしてくれるので、20 秒待たずに失敗が分かる。
-    sendPayload: payload => send({ t: 'sendPayload', d: payload }),
+    sendPayload: payload => sendToActive({ t: 'sendPayload', d: payload }),
     destroy: () => {
       if (adapterMethods === methods) adapterMethods = null
     },
   }
 }
 
-function handleGatewayEvent(event, d) {
+function handleGatewayEvent(msg) {
+  const { event, d } = msg
+  if (!isObject(d)) {
+    log('warn: gateway イベントの d が不正なので無視しました')
+    return
+  }
+  if (event !== 'VOICE_STATE_UPDATE' && event !== 'VOICE_SERVER_UPDATE') {
+    log('warn: 未知の gateway イベントです:', String(event))
+    return
+  }
   if (!adapterMethods) {
     // 退室した直後にも自分の VOICE_STATE_UPDATE が届く。異常ではないので無視してよい。
     log(`${event} を受け取りましたが、待っている接続がないので無視します`)
     return
   }
+  // 入室中のギルド以外のイベントを渡すと、別のギルドの情報で接続を壊してしまう。
+  if (!joinedAs || d.guild_id !== joinedAs.guildId) {
+    log(`${event} を受け取りましたが、入室中のギルドのものではないので無視します`)
+    return
+  }
   if (event === 'VOICE_STATE_UPDATE') adapterMethods.onVoiceStateUpdate(d)
-  else if (event === 'VOICE_SERVER_UPDATE') adapterMethods.onVoiceServerUpdate(d)
-  else log(`warn: 未知の gateway イベントです: ${event}`)
+  else adapterMethods.onVoiceServerUpdate(d)
 }
 
 // ---------------------------------------------------------------------------
@@ -116,20 +159,38 @@ function handleGatewayEvent(event, d) {
 let connection = null
 
 /**
+ * 処理待ち・処理中の join の本数。status は入退室の列に並ばないので、
+ * 「列に入れた時点」で数えておかないと Ready 待ちの間に idle と答えてしまう。
+ */
+let pendingJoins = 0
+
+/** @returns {'idle' | 'joining' | 'joined'} */
+function currentState() {
+  if (pendingJoins > 0) return 'joining'
+  return connection ? 'joined' : 'idle'
+}
+
+/**
  * 入室中の情報。`userIds` は文字起こしの対象にしてよいユーザー（#63 で使う）で、
  * この Issue の範囲では join で受け取って保持するだけ。
  * @type {{ guildId: string, channelId: string, userIds: string[] } | null}
  */
 let joinedAs = null
 
-function resetToIdle(reason) {
-  if (!connection && !joinedAs) return
+/**
+ * 入室状態を畳む。
+ * @param {string} reason ログに残す理由
+ * @param {boolean} adapterAvailable false にすると退室の op 4 を送らずに畳む。
+ *   送り先のクライアントが居ないと分かっているときに使う（書けずに warn が出るのを避けるため）。
+ */
+function resetToIdle(reason, adapterAvailable = true) {
+  if (!connection) return
   const current = connection
   connection = null
   joinedAs = null
   if (current && current.state.status !== VoiceConnectionStatus.Destroyed) {
     try {
-      current.destroy()
+      current.destroy(adapterAvailable)
     } catch (err) {
       // destroy が二重に走ると例外になる。状態を idle に戻すのが目的なので握りつぶしてよい。
       log('warn: 接続の破棄に失敗しました:', err?.message ?? err)
@@ -156,17 +217,39 @@ function watchConnection(conn) {
 }
 
 // ---------------------------------------------------------------------------
+// 入退室の直列化
+// ---------------------------------------------------------------------------
+
+/**
+ * join と leave は 1 本ずつ順番に処理する。
+ * Ready を待っている最中に 2 回目の join が来ると、新旧の接続がお互いを破棄し合って
+ * どちらも消えてしまうため。status は今の状態をすぐ返したいので、この列には並ばせない。
+ * 待っている join がある間の leave は、その join が終わってから実行される。
+ */
+let workQueue = Promise.resolve()
+
+function enqueue(task) {
+  const next = workQueue.then(task)
+  // 失敗しても後続を止めない
+  workQueue = next.then(
+    () => undefined,
+    err => log('warn: 処理中に例外が発生しました:', err?.message ?? err),
+  )
+  return next
+}
+
+// ---------------------------------------------------------------------------
 // メッセージのハンドラ
 // ---------------------------------------------------------------------------
 
-async function handleJoin(msg) {
+async function handleJoin(msg, origin) {
   const { requestId, guildId, channelId } = msg
-  if (!guildId || !channelId) {
-    sendError(requestId, 'join には guildId と channelId が必要です')
+  if (!isId(guildId) || !isId(channelId)) {
+    sendError(origin, requestId, 'join には文字列の guildId と channelId が必要です')
     return
   }
   if (!activeClient || activeClient.destroyed) {
-    sendError(requestId, 'Gateway を中継するクライアントが接続していません')
+    sendError(origin, requestId, 'Gateway を中継するクライアントが接続していません')
     return
   }
 
@@ -175,7 +258,7 @@ async function handleJoin(msg) {
     resetToIdle('rejoin')
   }
 
-  const userIds = Array.isArray(msg.userIds) ? msg.userIds : []
+  const userIds = Array.isArray(msg.userIds) ? msg.userIds.filter(isId) : []
   log(`入室します: guild=${guildId} channel=${channelId} 対象ユーザー=${userIds.length} 人`)
 
   let conn
@@ -189,7 +272,7 @@ async function handleJoin(msg) {
       adapterCreator,
     })
   } catch (err) {
-    sendError(requestId, `入室の開始に失敗しました: ${err?.message ?? err}`)
+    sendError(origin, requestId, `入室の開始に失敗しました: ${err?.message ?? err}`)
     return
   }
 
@@ -197,68 +280,118 @@ async function handleJoin(msg) {
   joinedAs = { guildId, channelId, userIds }
   watchConnection(conn)
 
+  // Ready 待ちは「Ready になる」「破棄される」「時間切れ」の 3 つで終わる。
+  // どれで終わってもタイマーとリスナを残さないように、AbortController と finally で片付ける。
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, READY_TIMEOUT_MS)
+  let onDestroyed = null
+
   try {
-    // Destroyed と競争させる。切断で破棄されたときに 20 秒待たずに失敗を返すため。
     await Promise.race([
-      entersState(conn, VoiceConnectionStatus.Ready, READY_TIMEOUT_MS),
+      entersState(conn, VoiceConnectionStatus.Ready, controller.signal),
       new Promise((_resolve, reject) => {
-        conn.once(VoiceConnectionStatus.Destroyed, () => reject(new Error('接続が破棄されました')))
+        onDestroyed = () => reject(new Error('接続が破棄されました'))
+        conn.once(VoiceConnectionStatus.Destroyed, onDestroyed)
       }),
     ])
   } catch (err) {
-    resetToIdle('join 失敗')
-    sendError(requestId, `ボイスチャンネルへの接続に失敗しました: ${err?.message ?? err}`)
+    // 自分が作った接続がまだ現役のときだけ畳む。別の join に置き換わっていたら触らない。
+    if (connection === conn) resetToIdle('join 失敗')
+    const detail = timedOut ? `${READY_TIMEOUT_MS / 1000} 秒以内に Ready になりませんでした` : (err?.message ?? String(err))
+    sendError(origin, requestId, `ボイスチャンネルへの接続に失敗しました: ${detail}`)
+    return
+  } finally {
+    clearTimeout(timer)
+    controller.abort()
+    if (onDestroyed) conn.off(VoiceConnectionStatus.Destroyed, onDestroyed)
+  }
+
+  if (connection !== conn) {
+    sendError(origin, requestId, '入室中に別の要求で接続が置き換わりました')
     return
   }
 
   log(`入室しました: guild=${guildId} channel=${channelId}`)
-  send({ t: 'joined', requestId, guildId, channelId })
+  sendTo(origin, { t: 'joined', requestId, guildId, channelId })
 }
 
-function handleLeave(msg) {
+function handleLeave(msg, origin) {
   if (!connection) {
     log('退室の要求を受けましたが、既に idle です')
   } else {
     log('退室します')
     resetToIdle('leave')
   }
-  send({ t: 'left', requestId: msg.requestId })
+  sendTo(origin, { t: 'left', requestId: msg.requestId })
 }
 
-function handleStatus(msg) {
-  send({
+function handleStatus(msg, origin) {
+  sendTo(origin, {
     t: 'status',
     requestId: msg.requestId,
-    state: connection ? 'joined' : 'idle',
+    state: currentState(),
     channelId: joinedAs?.channelId ?? null,
     // whisper-server の起動管理は #64 の担当。ここでは固定値を返す。
     whisper: 'down',
   })
 }
 
-function handleMessage(raw) {
-  let msg
+function handleMessage(raw, origin) {
   try {
-    msg = JSON.parse(raw)
-  } catch {
-    log('warn: JSON として読めない行を無視しました:', raw.slice(0, 200))
-    return
-  }
-  switch (msg.t) {
-    case 'join':
-      handleJoin(msg).catch(err => sendError(msg.requestId, `join の処理で例外: ${err?.message ?? err}`))
-      break
-    case 'leave':
-      handleLeave(msg)
-      break
-    case 'status':
-      handleStatus(msg)
-      break
-    case 'gateway':
-      handleGatewayEvent(msg.event, msg.d)
-      break
-    default:
-      log('warn: 未知のメッセージ種別です:', String(msg.t))
+    let msg
+    try {
+      msg = JSON.parse(raw)
+    } catch {
+      log('warn: JSON として読めない行を無視しました:', raw.slice(0, 200))
+      return
+    }
+    // JSON.parse は null や数値、配列も返す。オブジェクトでなければ相手にしない。
+    if (!isObject(msg) || typeof msg.t !== 'string') {
+      log('warn: 形式が違う行を無視しました:', raw.slice(0, 200))
+      return
+    }
+    // 最新でないクライアント（置き換え中の古い channel など）からの指示は受け付けない。
+    if (origin !== activeClient) {
+      log('warn: 最新でないクライアントからのメッセージを無視しました:', msg.t)
+      return
+    }
+    if (msg.requestId !== undefined && typeof msg.requestId !== 'string') {
+      log('warn: requestId が文字列でないので無視しました:', msg.t)
+      return
+    }
+
+    switch (msg.t) {
+      case 'join':
+        // 列に入れた時点で数える。status は列に並ばないので、ここで数えておかないと
+        // Ready を待っている間に idle と答えてしまう。
+        pendingJoins++
+        enqueue(() => handleJoin(msg, origin))
+          .catch(err => sendError(origin, msg.requestId, `join の処理で例外: ${err?.message ?? err}`))
+          .finally(() => {
+            pendingJoins--
+          })
+        break
+      case 'leave':
+        enqueue(() => handleLeave(msg, origin)).catch(err =>
+          sendError(origin, msg.requestId, `leave の処理で例外: ${err?.message ?? err}`),
+        )
+        break
+      case 'status':
+        handleStatus(msg, origin)
+        break
+      case 'gateway':
+        handleGatewayEvent(msg)
+        break
+      default:
+        log('warn: 未知のメッセージ種別です:', msg.t)
+    }
+  } catch (err) {
+    // 壊れた入力でプロセスごと落ちないようにする。voice が死ぬと通話も切れるため。
+    log('warn: メッセージの処理で例外が発生しました:', err?.stack ?? err)
   }
 }
 
@@ -267,20 +400,43 @@ function handleMessage(raw) {
 // ---------------------------------------------------------------------------
 
 function onConnection(socket) {
+  const previous = [...clients]
   clients.add(socket)
   activeClient = socket
   log(`クライアントが接続しました（現在 ${clients.size} 本）`)
 
+  // 新しい channel が繋いできたら古いほうは明示的に閉じる。/restart で新旧が重なる期間に
+  // 両方から指示が飛んでくると、どちらの Gateway を借りているのか分からなくなるため。
+  for (const old of previous) {
+    log('新しい接続に置き換えるので、古いクライアントを閉じます')
+    old.end()
+  }
+
   // TCP と同じでソケットはバイト列なので、改行までを 1 メッセージとして自分で区切る。
   let buffer = ''
   socket.setEncoding('utf8')
+
+  const disconnectTooLong = why => {
+    log(`warn: ${why}（上限 ${MAX_LINE_BYTES} バイト）。このクライアントを切断します`)
+    buffer = ''
+    socket.destroy()
+  }
+
   socket.on('data', chunk => {
     buffer += chunk
     let index
     while ((index = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, index).trim()
       buffer = buffer.slice(index + 1)
-      if (line) handleMessage(line)
+      if (!line) continue
+      if (Buffer.byteLength(line) > MAX_LINE_BYTES) {
+        disconnectTooLong('1 行が長すぎます')
+        return
+      }
+      handleMessage(line, socket)
+    }
+    if (Buffer.byteLength(buffer) > MAX_LINE_BYTES) {
+      disconnectTooLong('改行が来ないまま長くなりました')
     }
   })
 
@@ -293,7 +449,8 @@ function onConnection(socket) {
     // channel サーバーが /restart で落ちてもこのプロセスは生かしたままにする。
     // ただし Gateway が切れると Discord 側が Bot を通話から外すので、状態は idle に戻す。
     log(`クライアントが切断しました（残り ${clients.size} 本）`)
-    if (clients.size === 0 && connection) resetToIdle('クライアントが全て切断')
+    // 退室の op 4 を送る先が無いので、adapterAvailable = false で畳む。
+    if (clients.size === 0 && connection) resetToIdle('クライアントが全て切断', false)
   }
   socket.on('close', drop)
   socket.on('error', err => {
@@ -304,23 +461,40 @@ function onConnection(socket) {
 
 /**
  * 前回の異常終了でソケットファイルが残っていることがある。
- * 繋いでみて応答が無ければ死んでいるので消す。応答があれば二重起動なので止める。
+ * 繋いでみて ECONNREFUSED なら死んでいるので消す。応答があれば二重起動なので止める。
+ * それ以外のエラー（権限など）では消さない。消してよいと判断できないものを消すと危ないため。
  */
 async function clearStaleSocket() {
-  if (!existsSync(SOCKET_PATH)) return
+  let stat
+  try {
+    stat = lstatSync(SOCKET_PATH)
+  } catch (err) {
+    if (err?.code === 'ENOENT') return
+    log(`${SOCKET_PATH} を調べられませんでした（${err?.code ?? err}）。起動を中止します`)
+    process.exit(1)
+  }
+  if (!stat.isSocket()) {
+    log(`${SOCKET_PATH} はソケットではありません。中身を確認してから消してください`)
+    process.exit(1)
+  }
   await new Promise(resolve => {
     const probe = net.connect(SOCKET_PATH)
-    probe.on('connect', () => {
+    probe.once('connect', () => {
       probe.destroy()
       log(`既に voice プロセスが動いています（${SOCKET_PATH}）。起動を中止します`)
       process.exit(1)
     })
-    probe.on('error', () => {
+    probe.once('error', err => {
+      if (err?.code !== 'ECONNREFUSED') {
+        log(`ソケットに繋げませんでした（${err?.code ?? err}）。消さずに起動を中止します`)
+        process.exit(1)
+      }
       try {
         unlinkSync(SOCKET_PATH)
         log('残っていたソケットファイルを消しました')
-      } catch (err) {
-        log('warn: ソケットファイルを消せませんでした:', err?.message ?? err)
+      } catch (unlinkErr) {
+        log(`ソケットファイルを消せませんでした（${unlinkErr?.code ?? unlinkErr}）。起動を中止します`)
+        process.exit(1)
       }
       resolve()
     })
@@ -336,19 +510,31 @@ server.on('error', err => {
 
 let shuttingDown = false
 
-function shutdown(signal) {
+/** 退室の op 4 を書き終える → 接続を閉じる、までを順番に待つ。 */
+async function finishShutdown() {
+  resetToIdle('shutdown')
+  await flushWrites()
+  for (const socket of clients) socket.end()
+  await new Promise(resolve => server.close(() => resolve()))
+}
+
+async function shutdown(signal) {
   if (shuttingDown) return
   shuttingDown = true
   log(`${signal} を受け取りました。終了します`)
-  resetToIdle('shutdown')
-  server.close()
-  try {
-    if (existsSync(SOCKET_PATH)) unlinkSync(SOCKET_PATH)
-  } catch {
-    // 消せなくても次回の起動時に掃除されるので無視してよい
+
+  const done = finishShutdown().catch(err => log('warn: 後始末で例外:', err?.message ?? err))
+  const timeout = sleep(SHUTDOWN_TIMEOUT_MS, 'timeout')
+  if ((await Promise.race([done.then(() => 'done'), timeout])) === 'timeout') {
+    log(`warn: 後始末が ${SHUTDOWN_TIMEOUT_MS / 1000} 秒で終わらなかったので打ち切ります`)
   }
-  // ログの書き出しを待ってから抜ける
-  logStream.end(() => process.exit(0))
+
+  try {
+    if (lstatSync(SOCKET_PATH).isSocket()) unlinkSync(SOCKET_PATH)
+  } catch {
+    // 残っても次回の起動時に掃除されるので無視してよい
+  }
+  process.exit(0)
 }
 
 process.on('SIGINT', () => shutdown('SIGINT'))
