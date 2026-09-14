@@ -46,8 +46,9 @@ DISCORD_BOT_CHANNEL_MODE=fork discord-start
 
 - [ ] 本人にだけ見える形で「〇〇に入りました。喋った内容は〇〇のテキストチャットに返します。」が返る
 - [ ] Bot がボイスチャンネルに参加する（Discord アプリのメンバー一覧に Bot が出る）
-- [ ] 失敗する場合は `~/.claude/discord-bot/voice.log` を確認する（`READY_TIMEOUT_MS`＝20 秒で失敗するのは
-  #73 で追跡中の既知の間欠症状。1 回失敗しても、もう一度 `/voice join` を打てば通ることが多い）
+- [ ] 失敗する場合は `~/.claude/discord-bot/voice.log` の `stateChange` ログでどの段階で止まったかを確認する。
+  `Ready` に到達しない場合は `voice.json` の `voice.readyTimeoutS`（既定 8 秒）で 1 回だけ自動的に接続をやり直す
+  （合計最大 16 秒。#73）。それでも失敗したら、もう一度 `/voice join` を打つ
 
 ## 5. 発話して文字起こしを確認する
 
@@ -94,7 +95,8 @@ tmux kill-session -t voice-verify
 - 3.8 秒の発話が発言どおりに文字になった
 - 1 秒未満の短い発話も正しく拾えた（`minSpeechMs` 未満のノイズとして捨てられず、意味のある発話として認識された）
 - 1 回目の `/voice join` が `VoiceConnectionStatus.Ready` に到達せず、20 秒で「ボイスチャンネルへの接続に
-  失敗しました」になった。同じ環境で成功も複数回あり、間欠的な症状（Issue #73 で自動再試行を実装中）
+  失敗しました」になった。同じ環境で成功も複数回あり、間欠的な症状だった（この検証時点では未対応。
+  Issue #73 で自動再試行を実装済み。`readyTimeoutS` による 1 回の再試行で解消する見込み）
 
 ## NG だったときに集めるもの
 

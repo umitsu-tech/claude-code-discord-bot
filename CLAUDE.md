@@ -49,10 +49,11 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
   プロセスが Unix ドメインソケット `~/.claude/discord-bot/voice.sock` で待ち受け、Gateway は channel
   サーバーの 1 本を借りて入退室する。文字起こしはローカルの whisper.cpp（whisper-server 常駐 + 発話ごとに
   /inference）。読み上げは未対応（初回スコープ外）
-- 進行中（2026-09-14 開始）: #73（入室が間欠的に Ready に到達せず失敗することがある症状の再試行実装。
-  `voice.json` に `voice.readyTimeoutS`〈既定 8 秒〉が増える予定）。#67 の実機確認（docs/verify-voice.md）で
-  発生を確認済み
-- 残り・次の一歩: #73 の完了待ち。/clear を Bot 側に寄せる案（#52）は見送り（スキル経由でクリア前に要点を保存できる利点を残す）。開発フラグの不具合は anthropics/claude-code#82939 で既報のため報告しない（2026-09-03 判断）
+- 完了（2026-09-14）: #73（入室が間欠的に Ready に到達しない症状への再試行。`voice.json` に
+  `voice.readyTimeoutS`〈既定 8 秒〉を追加し、1 回だけ自動的に接続をやり直す）と #74（文字起こしを
+  `🎤 <表示名>: <文字起こし>` の形で VC のテキストチャットへ自動投稿。`access.json` の `voiceEcho: false`
+  で無効化可）をマージ。#67 のドキュメント・図に反映済み
+- 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り（スキル経由でクリア前に要点を保存できる利点を残す）。開発フラグの不具合は anthropics/claude-code#82939 で既報のため報告しない（2026-09-03 判断）
 - 現在の稼働: 管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。
   フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。
   Discord 側の動作確認は 2026-09-03 19:50 に完了（通常メッセージ、/ctx と /task のスラッシュコマンドで結果が投稿されることを確認）

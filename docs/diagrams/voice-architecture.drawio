@@ -1,6 +1,6 @@
 <mxfile host="drawio-cli">
     <diagram name="voice-architecture" id="voicearch">
-        <mxGraphModel dx="756" dy="638" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1480" pageHeight="800" math="0" shadow="0">
+        <mxGraphModel dx="756" dy="638" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1630" pageHeight="800" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -14,36 +14,40 @@
                     <mxGeometry x="40" y="500" width="180" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="laneChannel" value="channel サーバー（Bun）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F5FB;strokeColor=#6C8EBF;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" parent="1" vertex="1">
-                    <mxGeometry x="280" y="100" width="300" height="560" as="geometry"/>
+                    <mxGeometry x="430" y="100" width="300" height="560" as="geometry"/>
                 </mxCell>
                 <mxCell id="vcmd" value="voice-command.ts&lt;br&gt;/voice join・leave・status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;" parent="1" vertex="1">
-                    <mxGeometry x="305" y="140" width="250" height="120" as="geometry"/>
+                    <mxGeometry x="455" y="140" width="250" height="120" as="geometry"/>
                 </mxCell>
                 <mxCell id="vctl" value="voice-control.ts&lt;br&gt;ソケット中継・Gateway 中継" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;" parent="1" vertex="1">
-                    <mxGeometry x="305" y="500" width="250" height="120" as="geometry"/>
+                    <mxGeometry x="455" y="500" width="250" height="120" as="geometry"/>
                 </mxCell>
                 <mxCell id="laneVoice" value="voice プロセス（Node）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF2EA;strokeColor=#82B366;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" parent="1" vertex="1">
-                    <mxGeometry x="620" y="100" width="520" height="560" as="geometry"/>
+                    <mxGeometry x="770" y="100" width="520" height="560" as="geometry"/>
                 </mxCell>
                 <mxCell id="index" value="index.js&lt;br&gt;入退室・ソケット待ち受け" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;" parent="1" vertex="1">
-                    <mxGeometry x="650" y="140" width="460" height="110" as="geometry"/>
+                    <mxGeometry x="800" y="140" width="460" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="receiver" value="receiver.js&lt;br&gt;Opus→PCM デコード&lt;br&gt;Silero VAD・WAV 切り出し" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=14;" parent="1" vertex="1">
-                    <mxGeometry x="650" y="320" width="220" height="130" as="geometry"/>
+                    <mxGeometry x="800" y="320" width="220" height="130" as="geometry"/>
                 </mxCell>
                 <mxCell id="transcriber" value="transcriber.js&lt;br&gt;whisper-server 起動管理&lt;br&gt;/inference 呼び出し" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=14;" parent="1" vertex="1">
-                    <mxGeometry x="890" y="320" width="220" height="130" as="geometry"/>
+                    <mxGeometry x="1040" y="320" width="220" height="130" as="geometry"/>
                 </mxCell>
                 <mxCell id="whisper" value="whisper-server&lt;br&gt;（文字起こし、ローカル）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;fontSize=15;" parent="1" vertex="1">
-                    <mxGeometry x="1200" y="320" width="200" height="130" as="geometry"/>
+                    <mxGeometry x="1350" y="320" width="200" height="130" as="geometry"/>
                 </mxCell>
                 <mxCell id="claudeCode" value="Claude Code&lt;br&gt;常駐セッション" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=15;" parent="1" vertex="1">
-                    <mxGeometry x="1200" y="500" width="200" height="120" as="geometry"/>
+                    <mxGeometry x="1350" y="500" width="200" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="e1" value="VOICE_STATE_UPDATE / VOICE_SERVER_UPDATE 中継 ⇄ sendPayload（op 4）&lt;br&gt;reply → VC のテキストチャット（REST）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="gw" target="vctl" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="-140" y="-180" as="offset"/>
-                    </mxGeometry>
+                <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="gw" target="vctl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1labelAbove" value="VOICE_STATE_UPDATE / VOICE_SERVER_UPDATE 中継 ⇄&lt;br&gt;sendPayload（op 4）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="227" y="505" width="220" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1labelBelow" value="reply → VC のテキストチャット（REST）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="227" y="567" width="220" height="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="e2" value="join()/leave()/status() を呼ぶ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" parent="1" source="vcmd" target="vctl" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
@@ -51,8 +55,8 @@
                 <mxCell id="e3" value="voice.sock（改行区切り JSON）&lt;br&gt;join/leave/status/gateway ⇄&lt;br&gt;joined/left/status/error/transcript/superseded" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="vctl" target="index" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="600" y="560"/>
-                            <mxPoint x="600" y="195"/>
+                            <mxPoint x="750" y="560"/>
+                            <mxPoint x="750" y="195"/>
                         </Array>
                         <mxPoint x="-150" y="-95" as="offset"/>
                     </mxGeometry>
@@ -61,7 +65,7 @@
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="130" y="70"/>
-                            <mxPoint x="880" y="70"/>
+                            <mxPoint x="1030" y="70"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
@@ -79,8 +83,8 @@
                 <mxCell id="e8" value="transcript → notifications/claude/channel&lt;br&gt;（meta.via: voice） ← reply" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;labelBackgroundColor=#ffffff;" parent="1" source="vctl" target="claudeCode" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="430" y="760"/>
-                            <mxPoint x="1300" y="760"/>
+                            <mxPoint x="580" y="760"/>
+                            <mxPoint x="1450" y="760"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>

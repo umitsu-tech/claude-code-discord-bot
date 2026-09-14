@@ -232,7 +232,8 @@ Claude から見たツール名は `mcp__plugin_discord-bot_server-admin__<tool>
   喋り終えてから 2〜3 秒後に文字になる感覚です
 - Discord の音声受信（`@discordjs/voice` でのボイスチャンネル参加・受信）は公式にサポートされた
   領域ではありません。Discord 側の仕様変更で壊れる可能性があります
-- 入室が間欠的に `Ready` に到達せず失敗することがあります（#73 で自動再試行を実装中）
+- 入室が間欠的に `Ready` に到達しないことがあります。`voice.json` の `voice.readyTimeoutS`（既定 8 秒）で
+  1 回だけ自動的に接続をやり直しますが（合計最大 16 秒。#73）、それでも失敗したらもう一度 `/voice join` を打ってください
 
 ## channel プラグインの承認リスト
 
