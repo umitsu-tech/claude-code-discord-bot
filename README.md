@@ -30,6 +30,7 @@ Bot ステータス表示を載せたものです。作った経緯と考え方�
 | チャンネル作成ワークフロー | `/discord-bot:setup-channel`<br>作成 → access.json の受信設定 → 受信テスト<br>作成直後にフックが受信設定を促す |
 | スラッシュコマンド | `/ctx` `/clear` `/model` `/effort` `/restart` を同梱<br>`~/.claude/discord-bot/commands.json` に書けば任意のスキルを引数付きで呼べる |
 | 起動ランチャー | `scripts/start-discord.sh` が tmux セッション `discord` で claude を起動<br>二重起動は防ぐ |
+| 音声入力（聞き取りのみ） | Discord で `/voice join`・`leave`・`status`<br>発話を whisper.cpp でローカル文字起こしし、ボイスチャンネルのテキストチャットに返す（読み上げは未対応） |
 
 ## セットアップ
 
@@ -37,6 +38,9 @@ Bot ステータス表示を載せたものです。作った経緯と考え方�
 `bot` と `applications.commands` の 2 つのスコープでサーバーに招待してください。`applications.commands` が無いと
 スラッシュコマンドを登録できません。Bot の作り方は `channel/UPSTREAM-README.md` の Quick Setup 1〜3 と同じです。
 動作確認は macOS で行っています。
+
+音声入力（`/voice`）を使うなら、Node.js 22.12 以上と whisper.cpp（`brew install whisper.cpp`）も必要です。
+セットアップの手順 6 を参照してください。
 
 ### 1. プラグインを入れる
 
@@ -102,6 +106,20 @@ Claude Code は公式以外の channel プラグインからの通知を既定�
 起動画面の上のほうに「messages from plugin:discord-bot@ryuki-plugins inject directly in this session」と出て、
 その下に「not on the approved channels allowlist」の行が無ければ、Discord からのメッセージが届く状態です。
 
+### 6. 音声入力を使う場合（任意）
+
+`scripts/setup-voice.sh` を実行すると、whisper.cpp の導入（Homebrew）、文字起こしモデルのダウンロード、
+`voice.json` の雛形作成、`voice/` の `npm install` を一度に行います（何度実行しても、既にある分はスキップします）。
+
+```sh
+scripts/setup-voice.sh
+```
+
+サーバーにボイスチャンネルを作り、Bot に `Connect` 権限を与えてください。井戸端のような、ボイスチャンネルに
+付属するテキストチャットから `/voice join` を打つには、そのチャンネルを `access.json` の `groups` に
+登録しておく必要があります（スラッシュコマンドは受信設定済みのチャンネルでしか受け付けないため）。
+`/discord-bot:setup-channel` かボイスチャンネルの ID を指定した `/discord-bot:access group add` で登録してください。
+
 ## 使い方
 
 Discord のチャンネルで `/ctx` と送ると、次のような返事が来ます。
@@ -133,11 +151,16 @@ Bot のステータスは、Claude が応答してステータスラインが再
 チャンネルを増やしたいときは、Discord で「〇〇というチャンネル作って」と頼むだけで済みます。
 `/discord-bot:setup-channel` が作成から受信設定、受信テストまで案内します。
 
+ボイスチャンネルで `/voice join` と送ると「〇〇に入りました」と本人にだけ返り、以後そのチャンネルでの
+発話がテキストチャットに文字起こしされて返ってきます。`/voice status` で入室状態と whisper の状態を、
+`/voice leave` で退室を確認できます。喋り終えてから 2〜3 秒後に文字になる感覚です（読み上げは未対応）。
+
 ## ドキュメント
 
 - [docs/background.md](docs/background.md) 背景と考え方、関連記事
-- [docs/how-it-works.md](docs/how-it-works.md) /clear の流れ、Bot ステータス、スラッシュコマンド（/model・/effort・/restart を含む）、サーバー管理 MCP、制約
+- [docs/how-it-works.md](docs/how-it-works.md) /clear の流れ、Bot ステータス、スラッシュコマンド（/model・/effort・/restart・/voice を含む）、サーバー管理 MCP、音声の流れ、制約
 - [docs/development.md](docs/development.md) 更新のしかた、ディレクトリ構成、移植の経緯
+- [docs/verify-voice.md](docs/verify-voice.md) 音声機能の通し検証手順
 
 ## ライセンス
 

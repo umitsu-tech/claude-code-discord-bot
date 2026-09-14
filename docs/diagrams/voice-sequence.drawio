@@ -1,0 +1,106 @@
+<mxfile host="drawio-cli">
+    <diagram name="voice-sequence" id="voiceseq">
+        <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" page="1" pageWidth="1600" pageHeight="2350">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="lane1" value="ユーザー / Discord" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="40" width="280" height="2240" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane2" value="channel サーバー（Bun）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+                    <mxGeometry x="340" y="40" width="280" height="2240" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane3" value="voice プロセス（Node）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+                    <mxGeometry x="640" y="40" width="280" height="2240" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane4" value="whisper-server" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+                    <mxGeometry x="940" y="40" width="280" height="2240" as="geometry"/>
+                </mxCell>
+                <mxCell id="lane5" value="Claude Code" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999999;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+                    <mxGeometry x="1240" y="40" width="280" height="2240" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="s1" value="1. ユーザーが VC に入った状態で&lt;br&gt;/voice join を送る" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#333333;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="80" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s2" value="2. channel: allowFrom を確認し&lt;br&gt;voice-control.join() で&lt;br&gt;join を送る（ソケット）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="185" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s3" value="3. voice: joinVoiceChannel() を呼ぶ&lt;br&gt;adapterCreator が&lt;br&gt;sendPayload（op 4）を返す" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="660" y="290" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s4" value="4. channel: sendPayload を&lt;br&gt;該当ギルドの shard から&lt;br&gt;Discord へ送信する" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="395" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s5" value="5. Discord: VOICE_STATE_UPDATE /&lt;br&gt;VOICE_SERVER_UPDATE を&lt;br&gt;Gateway で返す" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#333333;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="500" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s6" value="6. channel: 2 つのイベントを&lt;br&gt;voice へ中継する&lt;br&gt;（gateway メッセージ）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="605" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s7" value="7. voice: Ready に到達&lt;br&gt;VAD（receiver）を起動し&lt;br&gt;joined を返す" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="660" y="710" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s8" value="8. channel: 本人にだけ&lt;br&gt;「〇〇に入りました」と返す&lt;br&gt;（ephemeral）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="815" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s9" value="9. ユーザーが VC で発話する" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#333333;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="920" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s10" value="10. voice: Opus を PCM に&lt;br&gt;デコードし、VAD で発話区間を&lt;br&gt;確定して WAV にする" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="660" y="1025" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s11" value="11. voice: WAV を&lt;br&gt;POST /inference で渡す" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="660" y="1130" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s12" value="12. whisper-server:&lt;br&gt;文字起こしした text を返す" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#999999;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="960" y="1235" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s13" value="13. voice: transcript を&lt;br&gt;channel へ送る（ソケット）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="660" y="1340" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s14" value="14. channel:&lt;br&gt;notifications/claude/channel&lt;br&gt;として渡す（meta.via: voice）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="1445" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s15" value="15. Claude Code:&lt;br&gt;文字起こしを受け取り&lt;br&gt;reply ツールを呼ぶ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="1260" y="1550" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s16" value="16. channel: reply を&lt;br&gt;VC のテキストチャットに&lt;br&gt;投稿する" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="1655" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s17" value="17. ユーザーが&lt;br&gt;/voice leave を送る" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#333333;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="1760" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s18" value="18. channel:&lt;br&gt;voice-control.leave() で&lt;br&gt;leave を送る（ソケット）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="1865" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s19" value="19. voice: 接続を破棄し&lt;br&gt;VAD（receiver）を止めて&lt;br&gt;left を返す" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="660" y="1970" width="240" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="s20" value="20. channel: 本人にだけ&lt;br&gt;「退室しました」と返す&lt;br&gt;（ephemeral）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+                    <mxGeometry x="360" y="2075" width="240" height="88" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="c1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s6" target="s7"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s7" target="s8"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s8" target="s9"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s9" target="s10"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s10" target="s11"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s11" target="s12"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s12" target="s13"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s13" target="s14"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s14" target="s15"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s15" target="s16"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s16" target="s17"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s17" target="s18"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s18" target="s19"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;labelBackgroundColor=none;" edge="1" parent="1" source="s19" target="s20"><mxGeometry relative="1" as="geometry"/></mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

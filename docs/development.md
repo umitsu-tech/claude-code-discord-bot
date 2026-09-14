@@ -35,9 +35,11 @@ channel/                            Discord channel サーバー（公式プラ�
   UPSTREAM-README.md                上流の README（原文のまま）
 voice/                              ボイスチャンネル用の Node プロセス（`@discordjs/voice` が Bun で動かないので channel と分けてある）
   index.js                          voice.sock で待ち受けて入退室する本体。Gateway は持たず channel から借りる
-  receiver.js                       Silero VAD による発話区間の切り出し
+  receiver.js                       Silero VAD による発話区間の切り出し（UtteranceSegmenter / VoiceReceiver）
   transcriber.js                    whisper-server の起動管理と /inference 呼び出し（文字起こし）
+  config.js                         voice.json（whisper / vad / debug セクション）の読み込み。無効な値はフィールドごとに既定値へフォールバックする
   dev/fake-gateway.js               channel の代わりに Gateway 中継だけを行う開発用スクリプト
+  dev/verify-vad.js                 録音済み WAV を UtteranceSegmenter に通し、区間の数と長さを機械的に確認する開発用スクリプト
 mcp/server-admin/                   サーバー管理 MCP（Python、uv）
 skills/access/ skills/configure/    アクセス管理とトークン設定（上流のスキルを名前空間だけ変えたもの）
 skills/ctx/                         /discord-bot:ctx
@@ -71,9 +73,11 @@ Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`
 
 ## voice プロセスの動作確認
 
-`voice/` は Node で動かします（Bun では `@discordjs/voice` が動きません）。channel サーバー側の中継が
-入るまでは、`voice/dev/fake-gateway.js` が channel の代わりに Gateway 中継だけを行うので、これで
-入退室を確認できます。ギルド ID とボイスチャンネル ID は引数か環境変数で渡します。
+`voice/` は Node で動かします（Bun では `@discordjs/voice` が動きません。依存する `@discordjs/opus` の
+プリビルドされたネイティブアドオン（`opus.node`）を Bun が正しく解決できないためで、discord.js 側は
+「fix する予定なし」としています。discordjs/discord.js#10296、oven-sh/bun#11313）。
+channel サーバー側の中継が入るまでは、`voice/dev/fake-gateway.js` が channel の代わりに Gateway 中継だけを
+行うので、これで入退室を確認できます。ギルド ID とボイスチャンネル ID は引数か環境変数で渡します。
 
 ```sh
 cd voice && npm install
@@ -86,6 +90,16 @@ voice プロセスはログを標準出力にだけ出します。ファイル�
 
 `fake-gateway.js` は Bot トークンを `~/.claude/channels/discord/.env` から読みます。常駐セッションと
 Gateway 接続が一時的に 2 本になりますが、テキスト系のインテントを持たせていないので二重返信は起きません。
+
+VAD（発話区間の切り出し）だけを単体で確認したいときは `voice/dev/verify-vad.js` を使います。Discord への
+接続もソケットも要らず、録音済みの WAV（48kHz・16bit・ステレオ。Discord の受信形式）を本実装と同じ
+`UtteranceSegmenter` に通して、区間の数・長さ・破棄された区間を表示します。`experiments/voice-receive/`
+の録音済み WAV や、`voice.json` の `debug.saveWav: true` で保存した `~/.claude/discord-bot/recordings/`
+の WAV をそのまま入力にできます。
+
+```sh
+node voice/dev/verify-vad.js <WAVファイルまたはディレクトリ> [...]
+```
 
 ## 移植の経緯
 
