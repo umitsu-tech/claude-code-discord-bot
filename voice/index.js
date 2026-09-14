@@ -22,7 +22,7 @@
  *   DISCORD_BOT_STATE_DIR  状態ファイルの置き場（既定 ~/.claude/discord-bot）
  */
 import net from 'node:net'
-import { lstatSync, mkdirSync, unlinkSync } from 'node:fs'
+import { lstatSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -31,6 +31,8 @@ import {
   entersState,
   VoiceConnectionStatus,
 } from '@discordjs/voice'
+import { VoiceReceiver } from './receiver.js'
+import { loadVoiceConfig } from './config.js'
 
 const STATE_DIR = process.env.DISCORD_BOT_STATE_DIR ?? join(homedir(), '.claude', 'discord-bot')
 const SOCKET_PATH = join(STATE_DIR, 'voice.sock')
@@ -184,6 +186,38 @@ function handleGatewayEvent(msg) {
 let connection = null
 
 /**
+ * 発話区間の検出（Issue #63）。join 成功時に作り、leave / idle で破棄する。
+ * @type {VoiceReceiver | null}
+ */
+let receiver = null
+
+/** utterance イベントごとの処理。#64（whisper-server）が実装されるまではログと debug 保存だけ行う。 */
+function handleUtterance(utt) {
+  const seconds = (utt.durationMs / 1000).toFixed(1)
+  log(`発話を検出しました: user=${utt.userId} ${seconds}秒`)
+  const { debug } = loadVoiceConfig()
+  if (!debug.saveWav) return
+  try {
+    const dir = join(STATE_DIR, 'recordings')
+    mkdirSync(dir, { recursive: true })
+    const stamp = utt.startedAt.toISOString().replace(/[:.]/g, '-')
+    const file = join(dir, `${stamp}_${utt.userId}.wav`)
+    writeFileSync(file, utt.wav)
+    log(`WAV を保存しました: ${file}`)
+  } catch (err) {
+    log('warn: WAV の保存に失敗しました:', err?.message ?? err)
+  }
+}
+
+/** 入室中の receiver を止める。resetToIdle と、接続が破棄されたときの両方から呼ぶ。 */
+function stopReceiver(reason) {
+  if (!receiver) return
+  const current = receiver
+  receiver = null
+  current.destroy().catch(err => log(`warn: receiver の破棄に失敗しました（${reason}）:`, err?.message ?? err))
+}
+
+/**
  * 処理待ち・処理中の join の本数。status は入退室の列に並ばないので、
  * 「列に入れた時点」で数えておかないと Ready 待ちの間に idle と答えてしまう。
  */
@@ -213,6 +247,7 @@ function resetToIdle(reason, adapterAvailable = true) {
   const current = connection
   connection = null
   joinedAs = null
+  stopReceiver(reason)
   if (current && current.state.status !== VoiceConnectionStatus.Destroyed) {
     try {
       current.destroy(adapterAvailable)
@@ -236,6 +271,7 @@ function watchConnection(conn) {
     if (connection !== conn) return
     connection = null
     joinedAs = null
+    stopReceiver('destroyed')
     log('接続が破棄されました')
   })
   conn.on('error', err => log('voice connection error:', err?.message ?? err))
@@ -341,6 +377,14 @@ async function handleJoin(msg, origin) {
   }
 
   log(`入室しました: guild=${guildId} channel=${channelId}`)
+
+  // 発話区間の検出を開始する（Issue #63）。対象は userIds に含まれる話者だけ。
+  const { vad } = loadVoiceConfig()
+  receiver = new VoiceReceiver(conn, joinedAs, vad)
+  receiver.on('utterance', handleUtterance)
+  receiver.on('warning', message => log('warn: voice receiver:', message))
+  receiver.on('error', err => log('warn: voice receiver でエラーが発生しました:', err?.message ?? err))
+
   sendTo(origin, { t: 'joined', requestId, guildId, channelId })
 }
 
