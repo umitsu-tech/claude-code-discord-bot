@@ -10,9 +10,13 @@
  * leave() は voice 側の仕様上、未入室でも「既に idle」のログを出すだけで成功応答を返す
  * （#62 の handleLeave 参照）。「入室していません」を返し分けるため、leave() を呼ぶ前に
  * status() で現在の状態を見てから判断する。
+ *
+ * status/leave は、voice プロセスが一度も起動していない（ソケット未接続）ときは isConnected() で
+ * 弾いて即答する。繋ぎに行くと voice の起動待ちで REQUEST_TIMEOUT_MS（20 秒）掛かってしまうため
+ * （voice の起動は join() だけが担う。status/leave では起動しない）。
  */
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js'
-import { join, leave, status } from './voice-control'
+import { isConnected, join, leave, status } from './voice-control'
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const
 
@@ -43,7 +47,7 @@ async function handleJoin(interaction: ChatInputCommandInteraction, allowFrom: s
   await interaction.deferReply(EPHEMERAL)
   try {
     await join(guild.id, channel.id, allowFrom)
-    await interaction.editReply({ content: `${channel.name} に入りました。喋った内容はこのチャンネルのテキストチャットに返します。` })
+    await interaction.editReply({ content: `${channel.name} に入りました。喋った内容は${channel.name}のテキストチャットに返します。` })
   } catch (e) {
     await interaction.editReply({ content: `入室できなかったよ（${(e as Error).message}）。` })
   }
@@ -51,6 +55,10 @@ async function handleJoin(interaction: ChatInputCommandInteraction, allowFrom: s
 
 async function handleLeave(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply(EPHEMERAL)
+  if (!isConnected()) {
+    await interaction.editReply({ content: '入室していません（voice プロセスは起動していません）。' })
+    return
+  }
   let current
   try {
     current = await status()
@@ -72,6 +80,10 @@ async function handleLeave(interaction: ChatInputCommandInteraction): Promise<vo
 
 async function handleStatus(interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply(EPHEMERAL)
+  if (!isConnected()) {
+    await interaction.editReply({ content: '入室していません（voice プロセスは起動していません） / whisper: down' })
+    return
+  }
   try {
     const res = await status()
     if (res.state === 'idle' || !res.channelId) {
