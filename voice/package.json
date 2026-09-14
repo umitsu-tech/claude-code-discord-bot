@@ -1,0 +1,23 @@
+{
+  "name": "discord-bot-voice",
+  "version": "0.1.0",
+  "description": "Discord のボイスチャンネル入退室と音声受信を担当する Node プロセス（channel サーバーとは別プロセス）",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "fake-gateway": "node dev/fake-gateway.js"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.2",
+    "prism-media": "^1.3.5"
+  },
+  "devDependencies": {
+    "discord.js": "^14.27.0"
+  }
+}
