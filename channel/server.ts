@@ -53,6 +53,7 @@ import { startPresence } from './presence'
 import { registerSlashCommands, toSkillInvocation, findCommand, type CommandDef } from './commands'
 import { switchSetting, restartSession, notifyRestartDone } from './session-control'
 import { initVoiceControl, activeChannelId as voiceActiveChannelId, type TranscriptEvent } from './voice-control'
+import { handleVoiceCommand } from './voice-command'
 
 const STATE_DIR = process.env.DISCORD_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'discord')
 const ACCESS_FILE = join(STATE_DIR, 'access.json')
@@ -877,6 +878,12 @@ async function handleSlashCommand(interaction: ChatInputCommandInteraction): Pro
       .reply(result.ok ? { content: result.message } : { content: result.message, flags: MessageFlags.Ephemeral })
       .catch(() => {})
     if (isDM) dmChannelUsers.set(interaction.channelId, interaction.user.id)
+    return
+  }
+  if (def?.action === 'voice') {
+    await handleVoiceCommand(interaction, access.allowFrom).catch(e =>
+      process.stderr.write(`discord channel: voice command failed: ${e}\n`),
+    )
     return
   }
 
