@@ -32,5 +32,15 @@
     "options": [
       { "name": "resume", "description": "yes を指定すると直前の会話を引き継いで起動し直す", "required": false }
     ]
+  },
+  {
+    "name": "voice",
+    "description": "ボイスチャンネルへの入退室と状態確認",
+    "action": "voice",
+    "subcommands": [
+      { "name": "join", "description": "あなたが今いるボイスチャンネルに Bot を呼ぶ" },
+      { "name": "leave", "description": "ボイスチャンネルから Bot を退室させる" },
+      { "name": "status", "description": "入室状態と文字起こしの状態を確認する" }
+    ]
   }
 ]

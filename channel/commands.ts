@@ -16,13 +16,13 @@
  * 登録には Bot の招待時に applications.commands スコープが必要。無い場合はログに招待 URL を出す。
  * DISCORD_SLASH_COMMANDS=off で無効化できる。
  */
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from 'discord.js'
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type Client, type SlashCommandSubcommandsOnlyBuilder } from 'discord.js'
 import { readFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
 /** action 付きはサーバー側で処理する（skill 省略可）。両方あれば action が優先 */
-export type CommandAction = 'model' | 'effort' | 'restart'
+export type CommandAction = 'model' | 'effort' | 'restart' | 'voice'
 
 export type CommandDef = {
   name: string
@@ -30,6 +30,8 @@ export type CommandDef = {
   skill?: string
   action?: CommandAction
   options?: { name: string; description: string; required?: boolean }[]
+  /** サブコマンド（例: /voice join）。あれば options は無視する（Discord は同じ階層に両方持てない） */
+  subcommands?: { name: string; description: string }[]
 }
 
 const STATE_DIR = process.env.DISCORD_BOT_STATE_DIR ?? join(homedir(), '.claude', 'discord-bot')
@@ -64,8 +66,14 @@ export function loadCommandDefs(): CommandDef[] {
   return [...byName.values()]
 }
 
-function toBuilder(c: CommandDef): SlashCommandBuilder {
+function toBuilder(c: CommandDef): SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder {
   const b = new SlashCommandBuilder().setName(c.name).setDescription((c.description || c.skill || c.name).slice(0, 100))
+  if (c.subcommands?.length) {
+    for (const s of c.subcommands) {
+      b.addSubcommand(sub => sub.setName(s.name).setDescription((s.description || s.name).slice(0, 100)))
+    }
+    return b
+  }
   for (const o of c.options ?? []) {
     b.addStringOption(opt =>
       opt.setName(o.name).setDescription((o.description || o.name).slice(0, 100)).setRequired(o.required ?? false),

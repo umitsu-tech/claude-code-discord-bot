@@ -167,6 +167,12 @@ export function activeChannelId(): string | null {
   return activeChannelId_
 }
 
+/** voice プロセスとソケットが繋がっているか。false なら要求を送っても voice の起動待ち（最大 REQUEST_TIMEOUT_MS）に
+ *  なるだけなので、呼び出し側（voice-command.ts の status/leave）は事前にこれを見て即座に「未入室」を返せる */
+export function isConnected(): boolean {
+  return sock !== null && !sock.destroyed
+}
+
 /** voice に通話参加を依頼する。userIds は access.allowFrom（文字起こしの対象を絞る） */
 export async function join(guildId: string, channelId: string, userIds: string[]): Promise<{ guildId: string; channelId: string }> {
   voiceRequested = true
