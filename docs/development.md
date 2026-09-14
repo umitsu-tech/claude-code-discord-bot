@@ -37,7 +37,7 @@ voice/                              ボイスチャンネル用の Node プロ�
   index.js                          voice.sock で待ち受けて入退室する本体。Gateway は持たず channel から借りる
   receiver.js                       Silero VAD による発話区間の切り出し（UtteranceSegmenter / VoiceReceiver）
   transcriber.js                    whisper-server の起動管理と /inference 呼び出し（文字起こし）
-  config.js                         voice.json（whisper / vad / debug セクション）の読み込み。無効な値はフィールドごとに既定値へフォールバックする
+  config.js                         voice.json（whisper / vad / voice / debug セクション）の読み込み。無効な値はフィールドごとに既定値へフォールバックする
   dev/fake-gateway.js               channel の代わりに Gateway 中継だけを行う開発用スクリプト
   dev/verify-vad.js                 録音済み WAV を UtteranceSegmenter に通し、区間の数と長さを機械的に確認する開発用スクリプト
 mcp/server-admin/                   サーバー管理 MCP（Python、uv）
@@ -60,9 +60,12 @@ docs/diagrams/                      図の元ファイル（.drawio）と書き�
 状態ファイルは `~/.claude/discord-bot/` に置きます。`/clear` 用が `pending-clear.json` と `clear-notify.log`、
 `/restart` 用が `restart-done.json`（完了マーカー。起動し直した channel サーバーが読んで消す）と
 `restart.log`（補助スクリプトと `claude update` の記録）、voice プロセス用が `voice.sock`（channel との
-やりとりに使う Unix ドメインソケット）と `voice.log` です。voice の設定は `voice.json`（whisper / vad / debug
+やりとりに使う Unix ドメインソケット）と `voice.log` です。voice の設定は `voice.json`（whisper / vad / voice / debug
 セクション。無いときは既定値で動く）、文字起こし用モデルは `models/`（`scripts/setup-voice.sh` が
 Hugging Face から取得する。リポジトリには入れない）に置きます。
+`voice.json` の `voice.readyTimeoutS`（既定 8）は、入室時に `VoiceConnectionStatus.Ready` への到達を
+1 回あたり何秒待つかの上限です。タイムアウトしたら 1 回だけ接続をやり直すので、合計の待ち時間は
+最大でこの 2 倍（既定 16 秒）になります。channel 側の join タイムアウト（30 秒）に収まるようにしてあります。
 Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`（`.env`、`access.json`）に置きます。
 
 ## voice の導入

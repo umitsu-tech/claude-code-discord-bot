@@ -1,6 +1,6 @@
 <mxfile host="drawio-cli">
     <diagram name="voice-architecture" id="voicearch">
-        <mxGraphModel dx="756" dy="638" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1480" pageHeight="740" math="0" shadow="0">
+        <mxGraphModel dx="756" dy="638" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1480" pageHeight="800" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -40,15 +40,15 @@
                 <mxCell id="claudeCode" value="Claude Code&lt;br&gt;常駐セッション" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=15;" parent="1" vertex="1">
                     <mxGeometry x="1200" y="500" width="200" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="e1" value="VOICE_STATE_UPDATE / VOICE_SERVER_UPDATE 中継 ⇄ sendPayload（op 4）&lt;br&gt;reply → VC のテキストチャット（REST）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=none;" parent="1" source="gw" target="vctl" edge="1">
+                <mxCell id="e1" value="VOICE_STATE_UPDATE / VOICE_SERVER_UPDATE 中継 ⇄ sendPayload（op 4）&lt;br&gt;reply → VC のテキストチャット（REST）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="gw" target="vctl" edge="1">
                     <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="-40" y="-150" as="offset"/>
+                        <mxPoint x="-140" y="-180" as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e2" value="join()/leave()/status() を呼ぶ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=none;" parent="1" source="vcmd" target="vctl" edge="1">
+                <mxCell id="e2" value="join()/leave()/status() を呼ぶ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" parent="1" source="vcmd" target="vctl" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e3" value="voice.sock（改行区切り JSON）&lt;br&gt;join/leave/status/gateway ⇄&lt;br&gt;joined/left/status/error/transcript/superseded" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=none;" parent="1" source="vctl" target="index" edge="1">
+                <mxCell id="e3" value="voice.sock（改行区切り JSON）&lt;br&gt;join/leave/status/gateway ⇄&lt;br&gt;joined/left/status/error/transcript/superseded" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="vctl" target="index" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="600" y="560"/>
@@ -57,7 +57,7 @@
                         <mxPoint x="-150" y="-95" as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e4" value="音声 Opus（UDP、受信のみ）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=0;entryX=0.5;entryY=0;labelBackgroundColor=none;" parent="1" source="vc" target="index" edge="1">
+                <mxCell id="e4" value="音声 Opus（UDP、受信のみ）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=0;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" parent="1" source="vc" target="index" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="130" y="70"/>
@@ -65,21 +65,24 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e5" value="connection.receiver.subscribe →&lt;br&gt;← utterance（WAV）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.3;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=none;" parent="1" source="index" target="receiver" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="30" y="-30" as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e6" value="whisper.transcribe(wav) →&lt;br&gt;← text" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.7;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=none;" parent="1" source="index" target="transcriber" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="40" y="10" as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e7" value="POST /inference（HTTP）&lt;br&gt;GET /health" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=none;" parent="1" source="transcriber" target="whisper" edge="1">
+                <mxCell id="e5" value="connection.receiver.subscribe →&lt;br&gt;← utterance（WAV）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.3;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" parent="1" source="index" target="receiver" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e8" value="transcript → notifications/claude/channel&lt;br&gt;（meta.via: voice） ← reply" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=none;" parent="1" source="vctl" target="claudeCode" edge="1">
+                <mxCell id="e6" value="whisper.transcribe(wav) →&lt;br&gt;← text" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.7;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" parent="1" source="index" target="transcriber" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" value="POST /inference（HTTP）&lt;br&gt;GET /health" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="transcriber" target="whisper" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="0" y="-90" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e8" value="transcript → notifications/claude/channel&lt;br&gt;（meta.via: voice） ← reply" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;labelBackgroundColor=#ffffff;" parent="1" source="vctl" target="claudeCode" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="430" y="760"/>
+                            <mxPoint x="1300" y="760"/>
+                        </Array>
+                    </mxGeometry>
                 </mxCell>
             </root>
         </mxGraphModel>
