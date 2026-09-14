@@ -31,6 +31,11 @@ const DEFAULTS = {
     minSpeechMs: 300,
     maxUtteranceS: 30,
   },
+  voice: {
+    // Ready への到達を待つ上限（1 回あたり）。タイムアウトしたら 1 回だけ再試行するので、
+    // 合計の待ち時間はこの 2 倍（既定 8 * 2 = 16 秒）。channel 側の join タイムアウト（30 秒）に収める。
+    readyTimeoutS: 8,
+  },
   debug: {
     saveWav: false,
   },
@@ -111,6 +116,23 @@ function validateVadSection(raw) {
   return out
 }
 
+/** voice セクションもフィールドごとに検証する。 */
+function validateVoiceSection(raw) {
+  const out = { ...DEFAULTS.voice }
+  if (!isPlainObject(raw)) return out
+  if ('readyTimeoutS' in raw) {
+    if (isFinitePositiveNumber(raw.readyTimeoutS)) {
+      out.readyTimeoutS = raw.readyTimeoutS
+    } else {
+      console.error(
+        `[voice/config] voice.readyTimeoutS は有限の正の数値である必要があります` +
+          `（受け取った値: ${JSON.stringify(raw.readyTimeoutS)}）。既定値 ${DEFAULTS.voice.readyTimeoutS} を使います`,
+      )
+    }
+  }
+  return out
+}
+
 /** debug セクションも同様にフィールドごとに検証する。 */
 function validateDebugSection(raw) {
   const out = { ...DEFAULTS.debug }
@@ -151,6 +173,7 @@ export function loadVoiceConfig(opts = {}) {
   cached = {
     whisper: validateWhisperSection(raw.whisper),
     vad: validateVadSection(raw.vad),
+    voice: validateVoiceSection(raw.voice),
     debug: validateDebugSection(raw.debug),
   }
   return cached

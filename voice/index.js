@@ -38,9 +38,6 @@ import * as whisper from './transcriber.js'
 const STATE_DIR = process.env.DISCORD_BOT_STATE_DIR ?? join(homedir(), '.claude', 'discord-bot')
 const SOCKET_PATH = join(STATE_DIR, 'voice.sock')
 
-// Ready への到達を待つ上限。Gateway の中継を挟むぶん、直結より少し余裕を見てある。
-const READY_TIMEOUT_MS = 20_000
-
 // 1 行の上限。まともなメッセージはせいぜい数百バイトなので、これを超えるのは壊れた送信側とみなす。
 const MAX_LINE_BYTES = 64 * 1024
 
@@ -303,6 +300,16 @@ function resetToIdle(reason, adapterAvailable = true) {
 }
 
 function watchConnection(conn) {
+  // Issue #73: 原因の切り分け用に、状態遷移を常にログへ残す。
+  // 成功時も connecting -> connecting のように同じ status 同士の遷移が記録されることがあるが、
+  // それ自体は異常ではない（IP discovery や DAVE のハンドシェイクの再試行などで起きる）。
+  conn.on('stateChange', (oldState, newState) => {
+    const extra = []
+    if (newState.reason !== undefined) extra.push(`reason=${newState.reason}`)
+    if (newState.closeCode !== undefined) extra.push(`closeCode=${newState.closeCode}`)
+    const suffix = extra.length ? ` (${extra.join(', ')})` : ''
+    log(`voice connection stateChange: ${oldState.status} -> ${newState.status}${suffix}`)
+  })
   // Gateway 側の都合で通話から外された場合。Discord は Gateway セッションが切れると Bot を通話から外す。
   // 自動再入室はしない（Issue #62 の範囲外）。手で /voice join を打ち直す運用。
   conn.on(VoiceConnectionStatus.Disconnected, (_old, next) => {
@@ -348,6 +355,37 @@ function enqueue(task) {
 // メッセージのハンドラ
 // ---------------------------------------------------------------------------
 
+/**
+ * Ready への到達を待つ。「Ready になる」「破棄される」「時間切れ」の 3 つのいずれかで終わる。
+ * どれで終わってもタイマーとリスナを残さないように、AbortController と finally で片付ける。
+ * @returns {Promise<{ ok: true } | { ok: false, timedOut: boolean, err?: unknown }>}
+ */
+async function waitForReady(conn, timeoutMs) {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  let onDestroyed = null
+  try {
+    await Promise.race([
+      entersState(conn, VoiceConnectionStatus.Ready, controller.signal),
+      new Promise((_resolve, reject) => {
+        onDestroyed = () => reject(new Error('接続が破棄されました'))
+        conn.once(VoiceConnectionStatus.Destroyed, onDestroyed)
+      }),
+    ])
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, timedOut, err }
+  } finally {
+    clearTimeout(timer)
+    controller.abort()
+    if (onDestroyed) conn.off(VoiceConnectionStatus.Destroyed, onDestroyed)
+  }
+}
+
 async function handleJoin(msg, origin) {
   const { requestId, guildId, channelId } = msg
   if (!isId(guildId) || !isId(channelId)) {
@@ -371,9 +409,11 @@ async function handleJoin(msg, origin) {
   // 通話への入退室自体は whisper の状態に関わらず進める。
   void whisper.start()
 
-  let conn
-  try {
-    conn = joinVoiceChannel({
+  const { readyTimeoutS } = loadVoiceConfig().voice
+  const readyTimeoutMs = readyTimeoutS * 1000
+
+  const startConnection = () =>
+    joinVoiceChannel({
       channelId,
       guildId,
       // 受信するので deaf は必ず解く。こちらからは喋らないので mute のままにしておく。
@@ -381,6 +421,10 @@ async function handleJoin(msg, origin) {
       selfMute: true,
       adapterCreator,
     })
+
+  let conn
+  try {
+    conn = startConnection()
   } catch (err) {
     sendError(origin, requestId, `入室の開始に失敗しました: ${err?.message ?? err}`)
     return
@@ -390,34 +434,36 @@ async function handleJoin(msg, origin) {
   joinedAs = { guildId, channelId, userIds }
   watchConnection(conn)
 
-  // Ready 待ちは「Ready になる」「破棄される」「時間切れ」の 3 つで終わる。
-  // どれで終わってもタイマーとリスナを残さないように、AbortController と finally で片付ける。
-  const controller = new AbortController()
-  let timedOut = false
-  const timer = setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, READY_TIMEOUT_MS)
-  let onDestroyed = null
+  // Ready 待ちは最大 2 回まで（1 回目 + タイムアウト時の再試行 1 回）。
+  // 合計の待ち時間は既定で readyTimeoutS(8 秒) の 2 倍 = 16 秒。channel 側の join タイムアウト
+  // （30 秒）に収まるようにしてある。破棄など時間切れ以外の理由で終わった場合は再試行しない。
+  let result = await waitForReady(conn, readyTimeoutMs)
 
-  try {
-    await Promise.race([
-      entersState(conn, VoiceConnectionStatus.Ready, controller.signal),
-      new Promise((_resolve, reject) => {
-        onDestroyed = () => reject(new Error('接続が破棄されました'))
-        conn.once(VoiceConnectionStatus.Destroyed, onDestroyed)
-      }),
-    ])
-  } catch (err) {
+  if (!result.ok && result.timedOut && connection === conn) {
+    log('Ready に到達しなかったので接続をやり直します（1/1）')
+    resetToIdle('Ready タイムアウトの再試行')
+
+    try {
+      conn = startConnection()
+    } catch (err) {
+      sendError(origin, requestId, `入室の開始に失敗しました: ${err?.message ?? err}`)
+      return
+    }
+    connection = conn
+    joinedAs = { guildId, channelId, userIds }
+    watchConnection(conn)
+
+    result = await waitForReady(conn, readyTimeoutMs)
+  }
+
+  if (!result.ok) {
     // 自分が作った接続がまだ現役のときだけ畳む。別の join に置き換わっていたら触らない。
     if (connection === conn) resetToIdle('join 失敗')
-    const detail = timedOut ? `${READY_TIMEOUT_MS / 1000} 秒以内に Ready になりませんでした` : (err?.message ?? String(err))
+    const detail = result.timedOut
+      ? `${readyTimeoutS} 秒以内に Ready になりませんでした（再試行後も失敗）`
+      : (result.err?.message ?? String(result.err))
     sendError(origin, requestId, `ボイスチャンネルへの接続に失敗しました: ${detail}`)
     return
-  } finally {
-    clearTimeout(timer)
-    controller.abort()
-    if (onDestroyed) conn.off(VoiceConnectionStatus.Destroyed, onDestroyed)
   }
 
   if (connection !== conn) {
