@@ -140,6 +140,8 @@ type Access = {
   textChunkLimit?: number
   /** Split on paragraph boundaries instead of hard char count. */
   chunkMode?: 'length' | 'newline'
+  /** ボイス文字起こしを VC のテキストチャットへ自動投稿するか。既定（未指定）は有効。 */
+  voiceEcho?: boolean
 }
 
 function defaultAccess(): Access {
@@ -184,6 +186,7 @@ function readAccessFile(): Access {
       replyToMode: parsed.replyToMode,
       textChunkLimit: parsed.textChunkLimit,
       chunkMode: parsed.chunkMode,
+      voiceEcho: parsed.voiceEcho,
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return defaultAccess()
@@ -1012,6 +1015,10 @@ function notifyVoiceTranscript(t: TranscriptEvent): void {
     process.stderr.write(`discord channel: voice transcript from unlisted user ${t.userId} dropped\n`)
     return
   }
+
+  // Claude への通知を待たせないため await しない。失敗しても通知は止めず stderr にログを残すだけ
+  if (access.voiceEcho !== false) void echoVoiceTranscript(t)
+
   mcp.notification({
     method: 'notifications/claude/channel',
     params: {
@@ -1027,6 +1034,19 @@ function notifyVoiceTranscript(t: TranscriptEvent): void {
   }).catch(err => {
     process.stderr.write(`discord channel: failed to deliver voice transcript to Claude: ${err}\n`)
   })
+}
+
+// 文字起こしを、入室中のボイスチャンネル付属のテキストチャットへ Bot が投稿する。
+// reply ツールと同じ経路（fetchAllowedChannel の allowActiveVoice 一時許可 → send）を使う
+async function echoVoiceTranscript(t: TranscriptEvent): Promise<void> {
+  try {
+    const ch = await fetchAllowedChannel(t.channelId, { allowActiveVoice: true })
+    if (!('send' in ch)) return
+    const text = chunk(`🎤 ${t.username}: ${t.text}`, MAX_CHUNK_LIMIT, 'length')[0]
+    await ch.send(text)
+  } catch (err) {
+    process.stderr.write(`discord channel: failed to echo voice transcript: ${err}\n`)
+  }
 }
 
 let slashCommands: CommandDef[] = []

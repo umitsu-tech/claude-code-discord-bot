@@ -91,6 +91,8 @@ Configure outbound behavior with `/discord-bot:access set <key> <value>`.
 
 **`chunkMode`** chooses the split strategy: `length` cuts exactly at the limit; `newline` prefers paragraph boundaries.
 
+**`voiceEcho`** posts each voice transcript (`🎤 <display name>: <text>`) to the active voice channel's text chat as it arrives. Default (unset) is enabled; set to `false` to disable.
+
 ## Skill reference
 
 | Command | Effect |
@@ -103,7 +105,7 @@ Configure outbound behavior with `/discord-bot:access set <key> <value>`.
 | `/discord-bot:access policy allowlist` | Set `dmPolicy`. Values: `pairing`, `allowlist`, `disabled`. |
 | `/discord-bot:access group add <channel-id>` | Enable a guild channel. Flags: `--no-mention`, `--allow id1,id2`. |
 | `/discord-bot:access group rm <channel-id>` | Disable a guild channel. |
-| `/discord-bot:access set ackReaction 🔨` | Set a config key: `ackReaction`, `replyToMode`, `textChunkLimit`, `chunkMode`, `mentionPatterns`. |
+| `/discord-bot:access set ackReaction 🔨` | Set a config key: `ackReaction`, `replyToMode`, `textChunkLimit`, `chunkMode`, `mentionPatterns`, `voiceEcho`. |
 
 ## Config file
 
@@ -140,6 +142,9 @@ Configure outbound behavior with `/discord-bot:access set <key> <value>`.
   "textChunkLimit": 2000,
 
   // length = cut at limit. newline = prefer paragraph boundaries.
-  "chunkMode": "newline"
+  "chunkMode": "newline",
+
+  // Echo voice transcripts to the active voice channel's text chat. Default (unset): true.
+  "voiceEcho": true
 }
 ```
