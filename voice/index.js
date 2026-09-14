@@ -33,6 +33,7 @@ import {
 } from '@discordjs/voice'
 import { VoiceReceiver } from './receiver.js'
 import { loadVoiceConfig } from './config.js'
+import * as whisper from './transcriber.js'
 
 const STATE_DIR = process.env.DISCORD_BOT_STATE_DIR ?? join(homedir(), '.claude', 'discord-bot')
 const SOCKET_PATH = join(STATE_DIR, 'voice.sock')
@@ -191,22 +192,51 @@ let connection = null
  */
 let receiver = null
 
-/** utterance イベントごとの処理。#64（whisper-server）が実装されるまではログと debug 保存だけ行う。 */
-function handleUtterance(utt) {
+/** utterance イベントごとの処理。debug 保存のあと whisper-server に投げて transcript を送る（#64）。 */
+async function handleUtterance(utt) {
   const seconds = (utt.durationMs / 1000).toFixed(1)
   log(`発話を検出しました: user=${utt.userId} ${seconds}秒`)
   const { debug } = loadVoiceConfig()
-  if (!debug.saveWav) return
-  try {
-    const dir = join(STATE_DIR, 'recordings')
-    mkdirSync(dir, { recursive: true })
-    const stamp = utt.startedAt.toISOString().replace(/[:.]/g, '-')
-    const file = join(dir, `${stamp}_${utt.userId}.wav`)
-    writeFileSync(file, utt.wav)
-    log(`WAV を保存しました: ${file}`)
-  } catch (err) {
-    log('warn: WAV の保存に失敗しました:', err?.message ?? err)
+  if (debug.saveWav) {
+    try {
+      const dir = join(STATE_DIR, 'recordings')
+      mkdirSync(dir, { recursive: true })
+      const stamp = utt.startedAt.toISOString().replace(/[:.]/g, '-')
+      const file = join(dir, `${stamp}_${utt.userId}.wav`)
+      writeFileSync(file, utt.wav)
+      log(`WAV を保存しました: ${file}`)
+    } catch (err) {
+      log('warn: WAV の保存に失敗しました:', err?.message ?? err)
+    }
   }
+
+  if (whisper.status() !== 'ready') {
+    log(`文字起こしをスキップしました（whisper-server が ${whisper.status()} です）`)
+    return
+  }
+
+  let text
+  try {
+    text = await whisper.transcribe(utt.wav)
+  } catch (err) {
+    log('warn: 文字起こしに失敗しました:', err?.message ?? err)
+    return
+  }
+  if (!text) return
+  // 文字起こしが返ってくるまでの間に退室しているかもしれない。
+  if (!joinedAs) {
+    log('warn: 文字起こしが得られましたが、既に退室していたので送信をやめました')
+    return
+  }
+  sendToActive({
+    t: 'transcript',
+    guildId: joinedAs.guildId,
+    channelId: joinedAs.channelId,
+    userId: utt.userId,
+    text,
+    startedAt: utt.startedAt.toISOString(),
+    endedAt: utt.endedAt.toISOString(),
+  })
 }
 
 /** 入室中の receiver を止める。resetToIdle と、接続が破棄されたときの両方から呼ぶ。 */
@@ -322,6 +352,10 @@ async function handleJoin(msg, origin) {
   const userIds = Array.isArray(msg.userIds) ? msg.userIds.filter(isId) : []
   log(`入室します: guild=${guildId} channel=${channelId} 対象ユーザー=${userIds.length} 人`)
 
+  // whisper-server が down のままなら、この join を機に起動を試みる（ready/starting なら何もしない）。
+  // 通話への入退室自体は whisper の状態に関わらず進める。
+  void whisper.start()
+
   let conn
   try {
     conn = joinVoiceChannel({
@@ -404,8 +438,7 @@ function handleStatus(msg, origin) {
     requestId: msg.requestId,
     state: currentState(),
     channelId: joinedAs?.channelId ?? null,
-    // whisper-server の起動管理は #64 の担当。ここでは固定値を返す。
-    whisper: 'down',
+    whisper: whisper.status(),
   })
 }
 
@@ -582,6 +615,7 @@ let shuttingDown = false
 /** 退室の op 4 を書き終える → 接続を閉じる、までを順番に待つ。 */
 async function finishShutdown() {
   resetToIdle('shutdown')
+  whisper.stop()
   await flushWrites()
   for (const socket of clients) socket.end()
   await new Promise(resolve => server.close(() => resolve()))
@@ -613,4 +647,6 @@ await clearStaleSocket()
 
 server.listen(SOCKET_PATH, () => {
   log(`voice プロセスを起動しました: ${SOCKET_PATH}`)
+  // whisper-server への疎通確認・起動はソケットの受け付けをブロックしない。
+  void whisper.start()
 })

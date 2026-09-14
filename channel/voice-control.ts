@@ -461,11 +461,16 @@ function handleLine(line: string): void {
 
 function handleTranscript(msg: any): void {
   if (!onTranscript_) return
-  const { guildId, channelId, userId, username, text, startedAt, endedAt } = msg
+  const { guildId, channelId, userId, text, startedAt, endedAt } = msg
   if (!channelId || !userId || typeof text !== 'string') {
     log(`transcript の形が不正だよ: ${JSON.stringify(msg).slice(0, 200)}`)
     return
   }
+  // voice 側は username を知らないので送ってこない。client のキャッシュから補う
+  // （見つからなければ userId をそのまま表示名にする）
+  const username: string = typeof msg.username === 'string' && msg.username
+    ? msg.username
+    : (client_?.users.cache.get(userId)?.username ?? userId)
   onTranscript_({ guildId, channelId, userId, username, text, startedAt, endedAt })
 }
 

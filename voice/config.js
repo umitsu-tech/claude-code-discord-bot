@@ -18,8 +18,8 @@ const DEFAULTS = {
   whisper: {
     binary: 'whisper-server',
     port: 8178,
-    model: '',
-    vadModel: '',
+    model: '~/.claude/discord-bot/models/ggml-large-v3-turbo-q5_0.bin',
+    vadModel: '~/.claude/discord-bot/models/ggml-silero-v5.1.2.bin',
     language: 'ja',
     extraArgs: [],
   },
