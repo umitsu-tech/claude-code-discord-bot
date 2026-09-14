@@ -40,10 +40,19 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
   どちらも channel サーバー側で処理する方式（session-control.ts が tmux ペインへ send-keys、/restart は
   scripts/restart-helper.sh を切り離して起動）。スキル方式（PR #49）とスーパーバイザー方式（PR #48）は取り下げた。
   実機確認は 2026-09-05 に完了（手順は docs/verify-0.7.1.md）
-- 進行中（2026-09-14）: ボイスチャンネル対応（親 issue #61）。実装は #62〜#67 に分解済み。
-  #62（voice プロセスの骨格）で `voice/` を新設した。Node で動く別プロセスが Unix ドメインソケット
-  `~/.claude/discord-bot/voice.sock` で待ち受け、Gateway は channel サーバーの 1 本を借りて入退室する。
-  channel 側の中継は #65、音声受信は #63、文字起こしは #64。プラグインの version 上げは #67 でまとめて行う
+- 完了（2026-09-14）: ボイスチャンネル対応（親 issue #61）の #62〜#67 が完了（v0.8.0）。
+  #62（voice プロセスの骨格、`voice/` を新設）→ #63（Silero VAD による発話区間の切り出し、receiver.js）→
+  #64（whisper-server の起動管理と文字起こし、transcriber.js・scripts/setup-voice.sh）→
+  #65（channel サーバー側の中継、channel/voice-control.ts）→ #66（`/voice` join・leave・status、
+  channel/voice-command.ts）→ #67（ドキュメント 3 枚〈architecture 再構成 / voice-architecture /
+  voice-sequence〉、docs/verify-voice.md、README・how-it-works・development の更新）。Node で動く別
+  プロセスが Unix ドメインソケット `~/.claude/discord-bot/voice.sock` で待ち受け、Gateway は channel
+  サーバーの 1 本を借りて入退室する。文字起こしはローカルの whisper.cpp（whisper-server 常駐 + 発話ごとに
+  /inference）。読み上げは未対応（初回スコープ外）
+- 完了（2026-09-14）: #73（入室が間欠的に Ready に到達しない症状への再試行。`voice.json` に
+  `voice.readyTimeoutS`〈既定 8 秒〉を追加し、1 回だけ自動的に接続をやり直す）と #74（文字起こしを
+  `🎤 <表示名>: <文字起こし>` の形で VC のテキストチャットへ自動投稿。`access.json` の `voiceEcho: false`
+  で無効化可）をマージ。#67 のドキュメント・図に反映済み
 - 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り（スキル経由でクリア前に要点を保存できる利点を残す）。開発フラグの不具合は anthropics/claude-code#82939 で既報のため報告しない（2026-09-03 判断）
 - 現在の稼働: 管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。
   フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。

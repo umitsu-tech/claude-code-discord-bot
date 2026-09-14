@@ -49,8 +49,9 @@ channel サーバーは起動時に、Bot が参加している各サーバー�
 ### サーバー側で処理するコマンド（action）
 
 定義に `skill` ではなく `action` を書いたコマンドは、Claude に渡さず channel サーバー自身が処理します
-（`channel/session-control.ts`）。Claude のターンを使わないので、Claude が長い作業の途中でも即座に効きます。
-`action` は同梱の `model`・`effort`・`restart` だけで、追加分の `commands.json` からも同名で上書きできます。
+（`channel/session-control.ts`、`/voice` だけ `channel/voice-command.ts`）。Claude のターンを使わないので、
+Claude が長い作業の途中でも即座に効きます。
+`action` は同梱の `model`・`effort`・`restart`・`voice` だけで、追加分の `commands.json` からも同名で上書きできます。
 
 ```js
 [
@@ -114,6 +115,100 @@ Claude Code のバージョンを上げるには、常駐セッションを新�
 - ターミナルで `/exit` したときは補助スクリプトが動いていないので、そのまま終了してウィンドウが閉じます（今までどおり）
 - 取り残し対策として、完了通知は 10 分より古いマーカーを無視します（消すだけで投稿しません）
 
+## 音声の流れ
+
+音声入力（聞き取りのみ、読み上げは未対応）の全体像。
+
+![全体構成](diagrams/architecture.png)
+![音声機能の構成](diagrams/voice-architecture.png)
+![音声のシーケンス](diagrams/voice-sequence.png)
+
+### channel（Bun）と voice（Node）の分担
+
+`@discordjs/voice` が Bun で動かないため、ボイスチャンネルへの入退室と音声受信は別プロセス `voice/`（Node）に
+切り出してある。voice プロセスは Gateway 接続を持たない（トークンも持たない）。channel サーバーが張っている
+Gateway 1 本を Unix ドメインソケット `~/.claude/discord-bot/voice.sock` 越しに借りる形にしてある。
+channel 側の中継は `channel/voice-control.ts`、`/voice` コマンドの処理は `channel/voice-command.ts` が担う。
+
+voice プロセスの起動は `/voice join` が呼ばれたときだけ行われる。channel サーバー起動時には何もしない。
+起動は `voice-control.ts` が `node voice/index.js` を detached で spawn し、標準出力・標準エラーは
+`~/.claude/discord-bot/voice.log` にリダイレクトする。
+
+### ソケットのプロトコル
+
+改行区切りの JSON を 1 行 1 メッセージとしてやりとりする。voice 側が listen し、channel 側が繋ぎに行く。
+
+channel → voice
+
+- `join` / `leave` / `status`（`requestId` 付き。応答はこれで突き合わせる）
+- `gateway`（Bot 自身の `VOICE_STATE_UPDATE` と `VOICE_SERVER_UPDATE` をそのまま中継）
+
+voice → channel
+
+- `sendPayload`（op 4。channel が該当ギルドの shard へ送る）
+- `joined` / `left` / `status` / `error`（要求への応答）
+- `transcript`（発話の文字起こし。要求に紐づかない）
+- `superseded`（新しい channel サーバーに接続が置き換わったことの通知）
+
+voice は最後に繋いだクライアントを正として扱い、新しいクライアントが繋いだら古いソケットに
+`superseded` を送ってから `end()` する（`/restart` で新旧 channel が重なる期間の混線防止。受け取った側は
+次の `join()` まで自動再接続しない）。
+
+### Gateway 中継
+
+`/voice join` を受けると、channel は voice へ `join` を送る。voice は `@discordjs/voice` の
+adapterCreator から受け取った op 4（Voice State Update）を `sendPayload` として channel へ返し、
+channel は該当ギルドの shard へ実際に送信する。Discord から返ってくる `VOICE_STATE_UPDATE` と
+`VOICE_SERVER_UPDATE` は channel の `client.on('raw', ...)` で受け（Bot 自身のものだけを選別する）、
+`gateway` メッセージとして voice へ中継する。voice はこの 2 つを adapter に渡し、Ready に到達すると
+`joined` を channel へ返す。
+
+### VAD の終端 2 系統
+
+発話区間の検出（`voice/receiver.js`）は、話者ごとに `EndBehaviorType.Manual` で購読を開き、
+閉じるタイミングを 2 系統で判定する。
+
+- `silence-vad` — データは届き続けているが、Silero VAD が `silenceMs`（既定 700ms）分ずっと
+  「発話でない」と判定し続けた場合。購読は閉じない（データがまだ来る可能性があるため、バッファと
+  VAD の内部状態だけリセットして同じ購読のまま次の発話を受け続ける）
+- `silence-nodata` — 相手のクライアントが送信そのものを止め、データが `silenceMs` の間 1 バイトも
+  届かない場合（壁時計ベースの watchdog タイマーで検出する）。この場合だけ購読を閉じてよい
+
+Discord の `speaking` の `end` イベントは使わない。日本語の間投詞程度の間（0.5 秒前後）で on/off が
+揺れることがあるため、Manual 購読はその間も開いたままにしておく。
+
+### whisper-server の起動管理
+
+文字起こしはローカルの whisper.cpp（`whisper-server` 常駐 + 発話ごとに `POST /inference`）。
+`voice/transcriber.js` が voice プロセス起動時と各 `join` のたびに疎通確認（`GET /health`）し、
+応答が無ければ `spawn` で起動する。既に動いていたものは「自分のものではない」扱いにして、
+voice プロセス終了時にも止めない。落ちたら 1 回だけ再起動を試み、それでも駄目なら `down` のまま
+次の `join` を待つ。実測の所要時間は発話の長さ（1.6 / 7 / 12 秒）に関わらず約 2.5 秒
+（whisper が 30 秒枠で処理するため）。
+
+### 返事の行き先
+
+文字起こし結果（`transcript`）は voice から channel へソケットで送られ、channel は
+`notifications/claude/channel` として Claude へ渡す（`meta.via: 'voice'`）。Claude が reply ツールを
+呼ぶと、返事は Bot が入室中のボイスチャンネルに付属するテキストチャットへ通常のメッセージとして
+投稿される。文字起こしの対象は `access.allowFrom` に載っているユーザーだけで、対象外のユーザーの
+発話は channel 側で捨てられる。
+
+文字起こしが完成すると、Claude への通知と同時に `🎤 <表示名>: <文字起こし>` の形でその場のボイス
+チャンネルのテキストチャットにも投稿される。何を聞き取ったかをその場で確認できるようにするためで、
+`access.json` の `voiceEcho: false` で無効化できる。
+
+### /voice コマンド
+
+`/voice join`・`/voice leave`・`/voice status` は action 方式（下の「サーバー側で処理するコマンド
+（action）」の一覧に `voice` が加わる。Claude のターンを使わず channel サーバー自身が処理する）。
+
+- `/voice join` — 呼び出し元が今いるボイスチャンネルへ入室する。voice プロセスが未起動なら起動する
+- `/voice leave` — 退室する
+- `/voice status` — 入室状態と whisper の状態（`ready` / `starting` / `down`）を確認する
+
+いずれも `deferReply` → `editReply` で本人にだけ返す（voice プロセスとの往復に最大 30 秒かかるため）。
+
 ## サーバー管理 MCP
 
 `mcp/server-admin/` は Python（FastMCP + httpx）の MCP サーバーで、Discord REST API v10 を直接呼びます。
@@ -129,6 +224,16 @@ Claude から見たツール名は `mcp__plugin_discord-bot_server-admin__<tool>
 - `--channels` 付きの claude を 2 つ立てると Discord に二重返信します。ランチャーは検出して止めますが、手で起動するときは注意してください
 - Bot のステータスをプログラムから読み取るには Developer Portal で Presence Intent を有効にする必要があります（設定するだけなら不要）。`scripts/discord_presence_check.py` は確認用です
 - `/compact` は対象外です。同じ仕組みで送れますが、要約中に Discord 側が無音になるので用意していません
+- 音声入力は聞き取りのみで、読み上げ（音声合成）には対応していません。返事は常にテキストです
+- `/restart` すると voice プロセスと Gateway の接続が切れ、ボイスチャンネルから外れます（Discord は
+  Gateway セッションが切れると Bot を通話から外すため）。自動再入室はしないので、`/restart` のあとは
+  `/voice join` を打ち直してください
+- 1 発話あたり約 2.5 秒の遅延があります（whisper-server が発話を受け取ってから文字になるまで）。
+  喋り終えてから 2〜3 秒後に文字になる感覚です
+- Discord の音声受信（`@discordjs/voice` でのボイスチャンネル参加・受信）は公式にサポートされた
+  領域ではありません。Discord 側の仕様変更で壊れる可能性があります
+- 入室が間欠的に `Ready` に到達しないことがあります。`voice.json` の `voice.readyTimeoutS`（既定 8 秒）で
+  1 回だけ自動的に接続をやり直しますが（合計最大 16 秒。#73）、それでも失敗したらもう一度 `/voice join` を打ってください
 
 ## channel プラグインの承認リスト
 
