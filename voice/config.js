@@ -37,10 +37,53 @@ function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** セクション単位（whisper / vad / debug）で浅くマージする。未知のキーが増えても壊れないように。 */
+/** セクション単位（whisper）で浅くマージする。未知のキーが増えても壊れないように。 */
 function mergeSection(base, override) {
   if (!isPlainObject(override)) return { ...base }
   return { ...base, ...override }
+}
+
+function isFinitePositiveNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+/**
+ * vad セクションはフィールドごとに検証する。1 つのフィールドが不正でも、
+ * そのフィールドだけ既定値に戻して他は活かす（vad セクションまるごと既定値に
+ * 戻すと、他の正しい設定まで無視されてしまうため）。
+ */
+function validateVadSection(raw) {
+  const out = { ...DEFAULTS.vad }
+  if (!isPlainObject(raw)) return out
+  for (const key of /** @type {const} */ (['silenceMs', 'minSpeechMs', 'maxUtteranceS'])) {
+    if (!(key in raw)) continue
+    if (isFinitePositiveNumber(raw[key])) {
+      out[key] = raw[key]
+    } else {
+      console.error(
+        `[voice/config] vad.${key} は有限の正の数値である必要があります` +
+          `（受け取った値: ${JSON.stringify(raw[key])}）。既定値 ${DEFAULTS.vad[key]} を使います`,
+      )
+    }
+  }
+  return out
+}
+
+/** debug セクションも同様にフィールドごとに検証する。 */
+function validateDebugSection(raw) {
+  const out = { ...DEFAULTS.debug }
+  if (!isPlainObject(raw)) return out
+  if ('saveWav' in raw) {
+    if (typeof raw.saveWav === 'boolean') {
+      out.saveWav = raw.saveWav
+    } else {
+      console.error(
+        `[voice/config] debug.saveWav は boolean である必要があります` +
+          `（受け取った値: ${JSON.stringify(raw.saveWav)}）。既定値 ${DEFAULTS.debug.saveWav} を使います`,
+      )
+    }
+  }
+  return out
 }
 
 let cached = null
@@ -65,8 +108,8 @@ export function loadVoiceConfig(opts = {}) {
 
   cached = {
     whisper: mergeSection(DEFAULTS.whisper, raw.whisper),
-    vad: mergeSection(DEFAULTS.vad, raw.vad),
-    debug: mergeSection(DEFAULTS.debug, raw.debug),
+    vad: validateVadSection(raw.vad),
+    debug: validateDebugSection(raw.debug),
   }
   return cached
 }

@@ -16,17 +16,32 @@
  * 終端判定の設計判断（Issue #61 のコメント、discordjs/discord.js#8105 を踏まえたもの）
  *
  * - EndBehaviorType.Manual を使うのは、AfterSilence が発話の途中でストリームを閉じてしまう
- *   不具合を避けるため。購読は VAD 側が「本当に喋り終えた」と判定するまで閉じない
- * - 無音の判定は 2 種類の独立した仕組みで行う。
- *   (a) 音声データが実際に届いているが VAD が「発話でない」と判定し続ける区間
- *       → Silero VAD のフレーム単位の判定（16kHz・512 サンプル/フレーム）で追う
- *   (b) 相手のクライアントが speaking=false を送って音声データそのものが届かなくなる区間
- *       → データが来ない実時間（壁時計）を watchdog タイマーで追う。VAD のフレーム処理は
- *          データが届いたときにしか進まないので、(a) だけでは検出できない
- *   どちらの場合も `silenceMs` 経過したら 1 発話として確定する
+ *   不具合を避けるため。購読は「相手からの音声データそのものが止まった」と確認できるまで閉じない
+ * - 無音・区切りの判定は 3 種類ある（`_finalizeNow` の reason）。
+ *   'silence-vad'     データは届き続けているが、Silero VAD が `silenceMs` 分ずっと
+ *                      「発話でない」と判定し続けた（ノイズゲート無効・PTT 押しっぱなし等で
+ *                      無音のパケットが送られ続けるケースに対応する）
+ *   'silence-nodata'  相手のクライアントが送信そのものを止め、音声データが `silenceMs` の間
+ *                      1 バイトも届かない（壁時計ベースの watchdog タイマーで検出する。
+ *                      VAD のフレーム処理はデータが届いたときにしか進まないので、
+ *                      'silence-vad' の仕組みだけではこのケースを検出できない）
+ *   'max'             `maxUtteranceS` を超えた強制区切り
+ *   購読を閉じてよい（`idle` を発火する）のは 'silence-nodata' と destroy() のときだけ。
+ *   'silence-vad' と 'max' はデータがまだ来る可能性があるので、バッファと VAD の内部状態だけ
+ *   リセットして同じ購読のまま次の発話を受け続ける
  * - `speaking` の `end` は使わない。Discord の speaking はノイズゲートに依存する自己申告で、
  *   日本語の間投詞程度の間（0.5 秒前後）で on/off が揺れることがある。Manual 購読はその間も
  *   閉じずに開いたままにしておき、続きが同じストリームにそのまま流れてくることで対応する
+ *
+ * チャンクの投入順について
+ *
+ * - avr-vad の Silero v5 モデルは RNN の隠れ状態をフレームごとに読み書きするので、
+ *   投入順が入れ替わったり、確定処理（finalize）が投入中のチャンクの判定結果を
+ *   横取りしたりすると壊れる。`_queue`（チャンク投入タスクと確定タスクを両方積む単一の FIFO）と
+ *   `_drainLoop` で全部を直列に処理し、確定処理も「それまでに投入されたチャンクの判定が
+ *   終わったあと」にしか走らないようにしてある
+ * - VAD の処理がリアルタイムより遅れた場合に備えて、チャンク投入タスクの滞留数に上限を設け、
+ *   超えたら古いものから捨てる（無制限にメモリを食い続けないようにするため）
  */
 import { EventEmitter } from 'node:events'
 import prism from 'prism-media'
@@ -44,6 +59,9 @@ const BYTES_PER_FRAME = (CHANNELS * BITS) / 8 // 1 サンプル（左右 2ch 分
 const VAD_FRAME_SAMPLES = 512
 const VAD_FRAME_MS = (VAD_FRAME_SAMPLES / 16000) * 1000
 const VAD_POSITIVE_THRESHOLD = 0.5
+
+// VAD 処理待ちのチャンク数がこれを超えたら、古いものから捨てて警告を出す。
+const MAX_QUEUED_CHUNKS = 200
 
 /**
  * WAV ヘッダ（44 バイト）を組み立てる。実験スクリプト（experiments/voice-receive/record.js）と同じ形式。
@@ -93,6 +111,9 @@ function toMonoFloat32(pcm) {
  * イベント
  *   utterance({ wav, startedAt, endedAt, durationMs })  発話 1 件が確定した
  *   discarded({ reason, speechMs, bytes })               minSpeechMs 未満などで捨てた
+ *   idle()                                                データが止まった。購読を閉じてよい
+ *   warning(message)                                      バックプレッシャーでチャンクを捨てた等
+ *   error(err)                                            VAD の推論などで例外が起きた
  */
 export class UtteranceSegmenter extends EventEmitter {
   /** @param {{ silenceMs?: number, minSpeechMs?: number, maxUtteranceS?: number }} [config] */
@@ -104,10 +125,12 @@ export class UtteranceSegmenter extends EventEmitter {
 
     this._resetUtterance()
     this._vadReady = null
-    // vad.processAudio は内部で Silero の RNN 状態（隠れ状態テンソル）を読み書きするので、
-    // 複数のチャンクを並行に投入すると状態が壊れる。この Promise チェーンで 1 本ずつ順番に処理する。
-    this._vadQueue = Promise.resolve()
-    this._silenceTimer = null
+    this._vadInstance = null
+    // チャンク投入タスクと確定（finalize）タスクを両方積む単一の FIFO。_drainLoop が1本ずつ順番に処理する。
+    this._queue = []
+    this._draining = false
+    this._drainPromise = null
+    this._noDataTimer = null
     this._maxTimer = null
     this.destroyed = false
   }
@@ -115,6 +138,7 @@ export class UtteranceSegmenter extends EventEmitter {
   _resetUtterance() {
     this._chunks = []
     this._speechMs = 0
+    this._silentStreakMs = 0
     this._startedAt = null
     this._lastSpeechAt = null
   }
@@ -125,11 +149,12 @@ export class UtteranceSegmenter extends EventEmitter {
         model: 'v5',
         sampleRate: SAMPLE_RATE,
         frameSamples: VAD_FRAME_SAMPLES,
-        // SpeechStart/SpeechEnd の内蔵ステートマシンは使わず、フレームごとの確率だけをもらう。
-        // 無音判定は上の watchdog（壁時計ベース）と組み合わせて自前で行うため。
+        // SpeechStart/SpeechEnd の内蔵ステートマシン（フレーム数ベース）は使わず、
+        // フレームごとの確率だけをもらって ms 単位の自前の状態機械で判定する。
         onFrameProcessed: probs => this._onFrame(probs),
       }).then(vad => {
         vad.start()
+        this._vadInstance = vad
         return vad
       })
     }
@@ -137,23 +162,43 @@ export class UtteranceSegmenter extends EventEmitter {
   }
 
   _onFrame(probs) {
-    if (this.destroyed) return
-    if (probs.isSpeech < VAD_POSITIVE_THRESHOLD) return
+    const isSpeech = probs.isSpeech >= VAD_POSITIVE_THRESHOLD
     const now = Date.now()
-    if (this._startedAt === null) this._startedAt = now - VAD_FRAME_MS
-    this._lastSpeechAt = now
-    this._speechMs += VAD_FRAME_MS
+    if (isSpeech) {
+      if (this._startedAt === null) this._startedAt = now - VAD_FRAME_MS
+      this._lastSpeechAt = now
+      this._speechMs += VAD_FRAME_MS
+      this._silentStreakMs = 0
+      return
+    }
+    // 発話が一度も無いまま（＝話し始める前の物音など）でも数える。ノイズゲート無効・PTT
+    // 押しっぱなしのように、無音のパケットが延々と届き続けるケースで maxUtteranceS まで
+    // 待たせないため。実際に発話が始まっていれば minSpeechMs 判定で自然に捨てられる。
+    this._silentStreakMs += VAD_FRAME_MS
+    if (this._silentStreakMs >= this.silenceMs) {
+      this._silentStreakMs = 0
+      // データ自体はまだ届いている可能性があるので、購読は閉じない（'max' と同じ扱い）。
+      this._enqueueFinalize('silence-vad')
+    }
   }
 
-  _armSilenceTimer() {
-    clearTimeout(this._silenceTimer)
-    this._silenceTimer = setTimeout(() => this._finalize('silence'), this.silenceMs)
-    this._silenceTimer.unref?.()
+  /** データが届かない実時間を追う watchdog。push のたびに延長する。 */
+  _armNoDataTimer() {
+    if (this.destroyed) return
+    clearTimeout(this._noDataTimer)
+    this._noDataTimer = setTimeout(() => {
+      if (this.destroyed) return
+      this._enqueueFinalize('silence-nodata')
+    }, this.silenceMs)
+    this._noDataTimer.unref?.()
   }
 
   _armMaxTimer() {
-    if (this._maxTimer) return
-    this._maxTimer = setTimeout(() => this._finalize('max'), this.maxUtteranceMs)
+    if (this.destroyed || this._maxTimer) return
+    this._maxTimer = setTimeout(() => {
+      if (this.destroyed) return
+      this._enqueueFinalize('max')
+    }, this.maxUtteranceMs)
     this._maxTimer.unref?.()
   }
 
@@ -162,28 +207,77 @@ export class UtteranceSegmenter extends EventEmitter {
     if (this.destroyed) return Promise.resolve()
     this._chunks.push(pcmChunk)
     // データが届いた = まだ喋っている（か、少なくとも無音ではない）ので watchdog を延長する。
-    this._armSilenceTimer()
+    this._armNoDataTimer()
     this._armMaxTimer()
-    const result = this._vadQueue.then(() => this._runVad(pcmChunk))
-    // キュー自体は失敗しても reject させない（1 回の失敗で以降のチャンクが
-    // 全部素通りする＝ VAD が止まったまま気づけなくなるのを防ぐため）。
-    // 呼び出し元に失敗を伝えるのは `result`（push の戻り値）の役目。
-    this._vadQueue = result.catch(() => {})
-    return result
+    return this._enqueueChunk(pcmChunk)
+  }
+
+  _enqueueChunk(pcmChunk) {
+    const pendingChunks = this._queue.filter(task => task.type === 'chunk').length
+    if (pendingChunks >= MAX_QUEUED_CHUNKS) {
+      const idx = this._queue.findIndex(task => task.type === 'chunk')
+      if (idx !== -1) {
+        const [dropped] = this._queue.splice(idx, 1)
+        this.emit(
+          'warning',
+          `VAD の処理待ちチャンクが上限（${MAX_QUEUED_CHUNKS}）を超えたので、古いチャンクを1個破棄しました`,
+        )
+        dropped.resolve?.()
+      }
+    }
+    return new Promise(resolve => {
+      this._queue.push({ type: 'chunk', pcm: pcmChunk, resolve })
+      this._drain()
+    })
+  }
+
+  /**
+   * 確定処理をキューの末尾に積む。`_onFrame`（VAD のコールバック内）とタイマーの両方から
+   * 呼ばれる fire-and-forget な経路があるので、このメソッド自体は reject しない
+   * （失敗は `_drainLoop` が 'error' イベントとして報告する）。
+   */
+  _enqueueFinalize(reason) {
+    return new Promise(resolve => {
+      this._queue.push({ type: 'finalize', reason, resolve })
+      this._drain()
+    })
+  }
+
+  _drain() {
+    if (this._draining) return
+    this._draining = true
+    this._drainPromise = this._drainLoop().finally(() => {
+      this._draining = false
+    })
+  }
+
+  async _drainLoop() {
+    while (this._queue.length > 0) {
+      const task = this._queue.shift()
+      try {
+        if (task.type === 'chunk') {
+          await this._runVad(task.pcm)
+        } else {
+          this._finalizeNow(task.reason)
+        }
+      } catch (err) {
+        this.emit('error', err)
+      }
+      // 成功・失敗どちらでも呼び出し元を待たせたままにしない（reject は使わない。
+      // push()/_enqueueFinalize() の呼び出し元には 'error' イベントで別途伝える）。
+      task.resolve?.()
+    }
   }
 
   async _runVad(pcmChunk) {
-    if (this.destroyed) return
     const vad = await this._ensureVad()
-    if (this.destroyed) return
     await vad.processAudio(toMonoFloat32(pcmChunk))
   }
 
-  _finalize(reason) {
-    if (this.destroyed) return
-    clearTimeout(this._silenceTimer)
+  _finalizeNow(reason) {
+    clearTimeout(this._noDataTimer)
     clearTimeout(this._maxTimer)
-    this._silenceTimer = null
+    this._noDataTimer = null
     this._maxTimer = null
 
     const pcm = Buffer.concat(this._chunks)
@@ -204,13 +298,22 @@ export class UtteranceSegmenter extends EventEmitter {
       this.emit('discarded', { reason, speechMs, bytes: pcm.length })
     }
 
-    if (reason === 'max') {
-      // 話し続けている途中の強制区切り。ストリームは閉じずに、続きを次の発話として受け続ける。
-      this._armSilenceTimer()
-      this._armMaxTimer()
-    } else {
-      // silence（無音確定）または destroy。呼び出し側（VoiceReceiver）に購読を閉じてよいと伝える。
+    // avr-vad（FrameProcessor）は speaking 中に処理済みフレームを内部の audioBuffer に
+    // 貯め続ける。区切りのたびに pause→start で解放し、RNN の隠れ状態もリセットしておく
+    // （そのまま使い回すと、長い通話で audioBuffer が際限なく育ってしまう）。
+    if (this._vadInstance && reason !== 'destroy') {
+      this._vadInstance.pause()
+      this._vadInstance.start()
+    }
+
+    if (reason === 'silence-nodata') {
+      // データそのものが届かなくなった＝話者が本当に喋り終えた。購読を閉じてよい。
       this.emit('idle')
+    } else if (reason !== 'destroy' && !this.destroyed) {
+      // 'max' / 'silence-vad'。データはまだ来る可能性があるので、購読は開いたまま
+      // 次の発話として受け続ける。
+      this._armNoDataTimer()
+      this._armMaxTimer()
     }
   }
 
@@ -218,20 +321,17 @@ export class UtteranceSegmenter extends EventEmitter {
   async destroy() {
     if (this.destroyed) return
     this.destroyed = true
-    clearTimeout(this._silenceTimer)
+    clearTimeout(this._noDataTimer)
     clearTimeout(this._maxTimer)
-    if (this._startedAt !== null && this._speechMs >= this.minSpeechMs) {
-      // 無音を待たずに畳むが、確定条件を満たしている発話は捨てずに拾っておく。
-      const pcm = Buffer.concat(this._chunks)
-      const durationMs = (pcm.length / BYTES_PER_FRAME / SAMPLE_RATE) * 1000
-      this.emit('utterance', {
-        wav: buildWav(pcm),
-        startedAt: new Date(this._startedAt),
-        endedAt: new Date(this._lastSpeechAt ?? this._startedAt),
-        durationMs,
-      })
-    }
-    this._resetUtterance()
+    this._noDataTimer = null
+    this._maxTimer = null
+
+    // キューに残っている処理（投入済みだが未処理のチャンク）を先に終わらせてから確定させる。
+    // 先に状態をリセットしてしまうと、まだ処理中だったチャンクの判定結果が
+    // リセット後の状態に紛れ込む（レビュー指摘）。
+    await this._enqueueFinalize('destroy')
+    this._queue.length = 0
+
     if (this._vadReady) {
       try {
         const vad = await this._vadReady
@@ -249,6 +349,7 @@ export class UtteranceSegmenter extends EventEmitter {
  *
  * イベント
  *   utterance({ userId, wav, startedAt, endedAt, durationMs })
+ *   warning(message)
  *   error(err)
  */
 export class VoiceReceiver extends EventEmitter {
@@ -289,12 +390,28 @@ export class VoiceReceiver extends EventEmitter {
 
     this.speakers.set(userId, { opusStream, decoder, segmenter })
 
-    segmenter.on('utterance', utt => this.emit('utterance', { userId, ...utt }))
-    segmenter.on('error', err => this.emit('error', err))
-    segmenter.once('idle', () => this._closeSpeaker(userId))
+    // _closeSpeaker は Map から消えていれば何もしないので、同じ話者に対して
+    // 複数の経路（VAD の idle、ストリームの error/close）から呼ばれても安全。
+    const closeThis = () => this._closeSpeaker(userId)
 
-    opusStream.on('error', err => this.emit('error', err))
-    decoder.on('error', err => this.emit('error', err))
+    segmenter.on('utterance', utt => this.emit('utterance', { userId, ...utt }))
+    segmenter.on('warning', message => this.emit('warning', `user=${userId}: ${message}`))
+    segmenter.on('error', err => this.emit('error', err))
+    segmenter.once('idle', closeThis)
+
+    // @discordjs/voice はデコード失敗時などに stream.destroy(error) する。ここで閉じておかないと
+    // speakers に古いエントリが残り続け、その話者は次に喋っても speakers.has で弾かれて
+    // 二度と録音されなくなる。
+    opusStream.on('error', err => {
+      this.emit('error', err)
+      closeThis()
+    })
+    opusStream.on('close', closeThis)
+    decoder.on('error', err => {
+      this.emit('error', err)
+      closeThis()
+    })
+    decoder.on('close', closeThis)
     decoder.on('data', chunk => {
       segmenter.push(chunk).catch(err => this.emit('error', err))
     })

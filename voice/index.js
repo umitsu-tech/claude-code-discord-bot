@@ -382,6 +382,7 @@ async function handleJoin(msg, origin) {
   const { vad } = loadVoiceConfig()
   receiver = new VoiceReceiver(conn, joinedAs, vad)
   receiver.on('utterance', handleUtterance)
+  receiver.on('warning', message => log('warn: voice receiver:', message))
   receiver.on('error', err => log('warn: voice receiver でエラーが発生しました:', err?.message ?? err))
 
   sendTo(origin, { t: 'joined', requestId, guildId, channelId })
