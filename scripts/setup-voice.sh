@@ -38,6 +38,9 @@ else
   log "whisper.cpp を Homebrew でインストールする（brew install whisper.cpp）"
   brew install whisper.cpp
 fi
+# channel サーバー（voice を spawn する側）の PATH に /opt/homebrew/bin が無くても動くように、
+# voice.json には絶対パスを書く。
+whisper_bin="$(command -v whisper-server)"
 
 # 2. モデル
 mkdir -p "$models_dir"
@@ -49,8 +52,11 @@ download_if_missing() {
     return 0
   fi
   log "モデルをダウンロードする: $dest"
-  curl -L --fail -o "$dest.tmp" "$url"
-  mv "$dest.tmp" "$dest"
+  local tmp="$dest.tmp"
+  trap 'rm -f "$tmp"' EXIT
+  curl -L --fail -o "$tmp" "$url"
+  mv "$tmp" "$dest"
+  trap - EXIT
 }
 
 download_if_missing "$large_model_url" "$large_model_file"
@@ -65,7 +71,7 @@ else
   cat > "$voice_config" <<JSON
 {
   "whisper": {
-    "binary": "whisper-server",
+    "binary": "$whisper_bin",
     "port": 8178,
     "model": "$large_model_file",
     "vadModel": "$vad_model_file",

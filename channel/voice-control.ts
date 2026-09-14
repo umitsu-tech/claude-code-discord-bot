@@ -430,7 +430,7 @@ function handleLine(line: string): void {
     return
   }
   if (t === 'transcript') {
-    handleTranscript(msg)
+    void handleTranscript(msg)
     return
   }
   if (t === 'sendPayload') {
@@ -459,18 +459,29 @@ function handleLine(line: string): void {
   else entry.resolve(msg)
 }
 
-function handleTranscript(msg: any): void {
+// voice 側は username を知らないのでプロトコル上は省略される（optional）。cache に無ければ
+// fetch で取りに行き、それでも駄目なら userId をそのまま表示名にする
+async function resolveUsername(raw: unknown, userId: string): Promise<string> {
+  if (typeof raw === 'string' && raw) return raw
+  const cached = client_?.users.cache.get(userId)?.username
+  if (cached) return cached
+  try {
+    const fetched = await client_?.users.fetch(userId)
+    if (fetched?.username) return fetched.username
+  } catch (e) {
+    log(`transcript の username 解決に失敗したよ（userId=${userId}）: ${e}`)
+  }
+  return userId
+}
+
+async function handleTranscript(msg: any): Promise<void> {
   if (!onTranscript_) return
   const { guildId, channelId, userId, text, startedAt, endedAt } = msg
   if (!channelId || !userId || typeof text !== 'string') {
     log(`transcript の形が不正だよ: ${JSON.stringify(msg).slice(0, 200)}`)
     return
   }
-  // voice 側は username を知らないので送ってこない。client のキャッシュから補う
-  // （見つからなければ userId をそのまま表示名にする）
-  const username: string = typeof msg.username === 'string' && msg.username
-    ? msg.username
-    : (client_?.users.cache.get(userId)?.username ?? userId)
+  const username = await resolveUsername(msg.username, userId)
   onTranscript_({ guildId, channelId, userId, username, text, startedAt, endedAt })
 }
 

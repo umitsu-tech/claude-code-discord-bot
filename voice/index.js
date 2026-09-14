@@ -192,6 +192,13 @@ let connection = null
  */
 let receiver = null
 
+/**
+ * 入退室のたびに 1 つ進む世代番号。utterance を受け取った時点のこの値を捕まえておき、
+ * 文字起こしが完了した時点で変わっていたら（その間に leave → 別 VC への join があったら）
+ * 送信をやめる。捕まえておかないと、旧チャンネル分の発話が新チャンネル宛てに送られてしまう。
+ */
+let sessionGeneration = 0
+
 /** utterance イベントごとの処理。debug 保存のあと whisper-server に投げて transcript を送る（#64）。 */
 async function handleUtterance(utt) {
   const seconds = (utt.durationMs / 1000).toFixed(1)
@@ -215,6 +222,11 @@ async function handleUtterance(utt) {
     return
   }
 
+  // 発話を受け取った時点のセッション情報を捕まえておく（下のコメント参照）。
+  const generationAtUtterance = sessionGeneration
+  const guildIdAtUtterance = joinedAs?.guildId
+  const channelIdAtUtterance = joinedAs?.channelId
+
   let text
   try {
     text = await whisper.transcribe(utt.wav)
@@ -223,15 +235,14 @@ async function handleUtterance(utt) {
     return
   }
   if (!text) return
-  // 文字起こしが返ってくるまでの間に退室しているかもしれない。
-  if (!joinedAs) {
-    log('warn: 文字起こしが得られましたが、既に退室していたので送信をやめました')
+  if (generationAtUtterance !== sessionGeneration || !guildIdAtUtterance || !channelIdAtUtterance) {
+    log('warn: 文字起こしが得られましたが、その間に退室/再入室していたので送信をやめました')
     return
   }
   sendToActive({
     t: 'transcript',
-    guildId: joinedAs.guildId,
-    channelId: joinedAs.channelId,
+    guildId: guildIdAtUtterance,
+    channelId: channelIdAtUtterance,
     userId: utt.userId,
     text,
     startedAt: utt.startedAt.toISOString(),
@@ -277,6 +288,8 @@ function resetToIdle(reason, adapterAvailable = true) {
   const current = connection
   connection = null
   joinedAs = null
+  sessionGeneration++
+  whisper.clearQueue(`退室（${reason}）により待機中の発話を破棄しました`)
   stopReceiver(reason)
   if (current && current.state.status !== VoiceConnectionStatus.Destroyed) {
     try {
@@ -301,6 +314,8 @@ function watchConnection(conn) {
     if (connection !== conn) return
     connection = null
     joinedAs = null
+    sessionGeneration++
+    whisper.clearQueue('退室（destroyed）により待機中の発話を破棄しました')
     stopReceiver('destroyed')
     log('接続が破棄されました')
   })
@@ -415,7 +430,9 @@ async function handleJoin(msg, origin) {
   // 発話区間の検出を開始する（Issue #63）。対象は userIds に含まれる話者だけ。
   const { vad } = loadVoiceConfig()
   receiver = new VoiceReceiver(conn, joinedAs, vad)
-  receiver.on('utterance', handleUtterance)
+  // handleUtterance は async 関数なので、素の関数参照のままだと reject が拾えず
+  // 未処理 rejection で落ちかねない（Node は未処理 rejection でプロセスを終了させる）。
+  receiver.on('utterance', utt => handleUtterance(utt).catch(err => log('warn: handleUtterance で例外が発生しました:', err?.message ?? err)))
   receiver.on('warning', message => log('warn: voice receiver:', message))
   receiver.on('error', err => log('warn: voice receiver でエラーが発生しました:', err?.message ?? err))
 
