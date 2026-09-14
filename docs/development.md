@@ -35,6 +35,8 @@ channel/                            Discord channel サーバー（公式プラ�
   UPSTREAM-README.md                上流の README（原文のまま）
 voice/                              ボイスチャンネル用の Node プロセス（`@discordjs/voice` が Bun で動かないので channel と分けてある）
   index.js                          voice.sock で待ち受けて入退室する本体。Gateway は持たず channel から借りる
+  receiver.js                       Silero VAD による発話区間の切り出し
+  transcriber.js                    whisper-server の起動管理と /inference 呼び出し（文字起こし）
   dev/fake-gateway.js               channel の代わりに Gateway 中継だけを行う開発用スクリプト
 mcp/server-admin/                   サーバー管理 MCP（Python、uv）
 skills/access/ skills/configure/    アクセス管理とトークン設定（上流のスキルを名前空間だけ変えたもの）
@@ -48,6 +50,7 @@ scripts/start-discord.sh            tmux セッション discord に claude を�
 scripts/restart-helper.sh           /restart の裏方（claude の終了待ち → claude update → ランチャーで起動し直し）
 scripts/statusline_dump.py          ステータスライン JSON を保存するラッパー（古いダンプの掃除つき）
 scripts/discord_presence_check.py   自 Bot のプレゼンスを読む確認用（Presence Intent が必要）
+scripts/setup-voice.sh              voice/ の導入（whisper.cpp、モデル、voice.json の雛形、npm install）。冪等
 docs/migration-plan.md              移植の手順書と公開前チェックリスト
 docs/diagrams/                      図の元ファイル（.drawio）と書き出した PNG。編集は draw.io で、書き出しは drawio CLI（--scale 3）
 ```
@@ -55,8 +58,16 @@ docs/diagrams/                      図の元ファイル（.drawio）と書き�
 状態ファイルは `~/.claude/discord-bot/` に置きます。`/clear` 用が `pending-clear.json` と `clear-notify.log`、
 `/restart` 用が `restart-done.json`（完了マーカー。起動し直した channel サーバーが読んで消す）と
 `restart.log`（補助スクリプトと `claude update` の記録）、voice プロセス用が `voice.sock`（channel との
-やりとりに使う Unix ドメインソケット）と `voice.log` です。
+やりとりに使う Unix ドメインソケット）と `voice.log` です。voice の設定は `voice.json`（whisper / vad / debug
+セクション。無いときは既定値で動く）、文字起こし用モデルは `models/`（`scripts/setup-voice.sh` が
+Hugging Face から取得する。リポジトリには入れない）に置きます。
 Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`（`.env`、`access.json`）に置きます。
+
+## voice の導入
+
+`scripts/setup-voice.sh` を実行すると、whisper.cpp の導入（Homebrew）、文字起こしモデル 2 つのダウンロード、
+`voice.json` の雛形作成、`voice/` の `npm install` を一度に行います。何度実行しても、既にある分はスキップします
+（モデルの再ダウンロードはしません）。
 
 ## voice プロセスの動作確認
 

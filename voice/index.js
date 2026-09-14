@@ -33,6 +33,7 @@ import {
 } from '@discordjs/voice'
 import { VoiceReceiver } from './receiver.js'
 import { loadVoiceConfig } from './config.js'
+import * as whisper from './transcriber.js'
 
 const STATE_DIR = process.env.DISCORD_BOT_STATE_DIR ?? join(homedir(), '.claude', 'discord-bot')
 const SOCKET_PATH = join(STATE_DIR, 'voice.sock')
@@ -191,22 +192,62 @@ let connection = null
  */
 let receiver = null
 
-/** utterance イベントごとの処理。#64（whisper-server）が実装されるまではログと debug 保存だけ行う。 */
-function handleUtterance(utt) {
+/**
+ * 入退室のたびに 1 つ進む世代番号。utterance を受け取った時点のこの値を捕まえておき、
+ * 文字起こしが完了した時点で変わっていたら（その間に leave → 別 VC への join があったら）
+ * 送信をやめる。捕まえておかないと、旧チャンネル分の発話が新チャンネル宛てに送られてしまう。
+ */
+let sessionGeneration = 0
+
+/** utterance イベントごとの処理。debug 保存のあと whisper-server に投げて transcript を送る（#64）。 */
+async function handleUtterance(utt) {
   const seconds = (utt.durationMs / 1000).toFixed(1)
   log(`発話を検出しました: user=${utt.userId} ${seconds}秒`)
   const { debug } = loadVoiceConfig()
-  if (!debug.saveWav) return
-  try {
-    const dir = join(STATE_DIR, 'recordings')
-    mkdirSync(dir, { recursive: true })
-    const stamp = utt.startedAt.toISOString().replace(/[:.]/g, '-')
-    const file = join(dir, `${stamp}_${utt.userId}.wav`)
-    writeFileSync(file, utt.wav)
-    log(`WAV を保存しました: ${file}`)
-  } catch (err) {
-    log('warn: WAV の保存に失敗しました:', err?.message ?? err)
+  if (debug.saveWav) {
+    try {
+      const dir = join(STATE_DIR, 'recordings')
+      mkdirSync(dir, { recursive: true })
+      const stamp = utt.startedAt.toISOString().replace(/[:.]/g, '-')
+      const file = join(dir, `${stamp}_${utt.userId}.wav`)
+      writeFileSync(file, utt.wav)
+      log(`WAV を保存しました: ${file}`)
+    } catch (err) {
+      log('warn: WAV の保存に失敗しました:', err?.message ?? err)
+    }
   }
+
+  if (whisper.status() !== 'ready') {
+    log(`文字起こしをスキップしました（whisper-server が ${whisper.status()} です）`)
+    return
+  }
+
+  // 発話を受け取った時点のセッション情報を捕まえておく（下のコメント参照）。
+  const generationAtUtterance = sessionGeneration
+  const guildIdAtUtterance = joinedAs?.guildId
+  const channelIdAtUtterance = joinedAs?.channelId
+
+  let text
+  try {
+    text = await whisper.transcribe(utt.wav)
+  } catch (err) {
+    log('warn: 文字起こしに失敗しました:', err?.message ?? err)
+    return
+  }
+  if (!text) return
+  if (generationAtUtterance !== sessionGeneration || !guildIdAtUtterance || !channelIdAtUtterance) {
+    log('warn: 文字起こしが得られましたが、その間に退室/再入室していたので送信をやめました')
+    return
+  }
+  sendToActive({
+    t: 'transcript',
+    guildId: guildIdAtUtterance,
+    channelId: channelIdAtUtterance,
+    userId: utt.userId,
+    text,
+    startedAt: utt.startedAt.toISOString(),
+    endedAt: utt.endedAt.toISOString(),
+  })
 }
 
 /** 入室中の receiver を止める。resetToIdle と、接続が破棄されたときの両方から呼ぶ。 */
@@ -247,6 +288,8 @@ function resetToIdle(reason, adapterAvailable = true) {
   const current = connection
   connection = null
   joinedAs = null
+  sessionGeneration++
+  whisper.clearQueue(`退室（${reason}）により待機中の発話を破棄しました`)
   stopReceiver(reason)
   if (current && current.state.status !== VoiceConnectionStatus.Destroyed) {
     try {
@@ -271,6 +314,8 @@ function watchConnection(conn) {
     if (connection !== conn) return
     connection = null
     joinedAs = null
+    sessionGeneration++
+    whisper.clearQueue('退室（destroyed）により待機中の発話を破棄しました')
     stopReceiver('destroyed')
     log('接続が破棄されました')
   })
@@ -321,6 +366,10 @@ async function handleJoin(msg, origin) {
 
   const userIds = Array.isArray(msg.userIds) ? msg.userIds.filter(isId) : []
   log(`入室します: guild=${guildId} channel=${channelId} 対象ユーザー=${userIds.length} 人`)
+
+  // whisper-server が down のままなら、この join を機に起動を試みる（ready/starting なら何もしない）。
+  // 通話への入退室自体は whisper の状態に関わらず進める。
+  void whisper.start()
 
   let conn
   try {
@@ -381,7 +430,9 @@ async function handleJoin(msg, origin) {
   // 発話区間の検出を開始する（Issue #63）。対象は userIds に含まれる話者だけ。
   const { vad } = loadVoiceConfig()
   receiver = new VoiceReceiver(conn, joinedAs, vad)
-  receiver.on('utterance', handleUtterance)
+  // handleUtterance は async 関数なので、素の関数参照のままだと reject が拾えず
+  // 未処理 rejection で落ちかねない（Node は未処理 rejection でプロセスを終了させる）。
+  receiver.on('utterance', utt => handleUtterance(utt).catch(err => log('warn: handleUtterance で例外が発生しました:', err?.message ?? err)))
   receiver.on('warning', message => log('warn: voice receiver:', message))
   receiver.on('error', err => log('warn: voice receiver でエラーが発生しました:', err?.message ?? err))
 
@@ -404,8 +455,7 @@ function handleStatus(msg, origin) {
     requestId: msg.requestId,
     state: currentState(),
     channelId: joinedAs?.channelId ?? null,
-    // whisper-server の起動管理は #64 の担当。ここでは固定値を返す。
-    whisper: 'down',
+    whisper: whisper.status(),
   })
 }
 
@@ -582,6 +632,7 @@ let shuttingDown = false
 /** 退室の op 4 を書き終える → 接続を閉じる、までを順番に待つ。 */
 async function finishShutdown() {
   resetToIdle('shutdown')
+  whisper.stop()
   await flushWrites()
   for (const socket of clients) socket.end()
   await new Promise(resolve => server.close(() => resolve()))
@@ -613,4 +664,6 @@ await clearStaleSocket()
 
 server.listen(SOCKET_PATH, () => {
   log(`voice プロセスを起動しました: ${SOCKET_PATH}`)
+  // whisper-server への疎通確認・起動はソケットの受け付けをブロックしない。
+  void whisper.start()
 })

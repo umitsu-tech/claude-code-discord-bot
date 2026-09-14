@@ -18,10 +18,13 @@ const DEFAULTS = {
   whisper: {
     binary: 'whisper-server',
     port: 8178,
-    model: '',
-    vadModel: '',
+    // DISCORD_BOT_STATE_DIR を上書きしても既定のモデル置き場が追随するように、STATE_DIR から組み立てる。
+    model: join(STATE_DIR, 'models', 'ggml-large-v3-turbo-q5_0.bin'),
+    vadModel: join(STATE_DIR, 'models', 'ggml-silero-v5.1.2.bin'),
     language: 'ja',
     extraArgs: [],
+    // whisper-server の起動（ポートへの疎通）を待つ上限。モデル読み込みぶんの余裕を見てある。
+    startTimeoutS: 60,
   },
   vad: {
     silenceMs: 700,
@@ -37,14 +40,53 @@ function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** セクション単位（whisper）で浅くマージする。未知のキーが増えても壊れないように。 */
-function mergeSection(base, override) {
-  if (!isPlainObject(override)) return { ...base }
-  return { ...base, ...override }
-}
-
 function isFinitePositiveNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.length > 0
+}
+
+/**
+ * whisper セクションもフィールドごとに検証する。1 つのフィールドが不正でも、
+ * そのフィールドだけ既定値に戻して他は活かす。
+ */
+function validateWhisperSection(raw) {
+  const out = { ...DEFAULTS.whisper }
+  if (!isPlainObject(raw)) return out
+  for (const key of /** @type {const} */ (['binary', 'model', 'vadModel', 'language'])) {
+    if (!(key in raw)) continue
+    if (isNonEmptyString(raw[key])) {
+      out[key] = raw[key]
+    } else {
+      console.error(
+        `[voice/config] whisper.${key} は空でない文字列である必要があります` +
+          `（受け取った値: ${JSON.stringify(raw[key])}）。既定値 ${JSON.stringify(DEFAULTS.whisper[key])} を使います`,
+      )
+    }
+  }
+  for (const key of /** @type {const} */ (['port', 'startTimeoutS'])) {
+    if (!(key in raw)) continue
+    if (isFinitePositiveNumber(raw[key])) {
+      out[key] = raw[key]
+    } else {
+      console.error(
+        `[voice/config] whisper.${key} は有限の正の数値である必要があります` +
+          `（受け取った値: ${JSON.stringify(raw[key])}）。既定値 ${DEFAULTS.whisper[key]} を使います`,
+      )
+    }
+  }
+  if ('extraArgs' in raw) {
+    if (Array.isArray(raw.extraArgs)) {
+      out.extraArgs = raw.extraArgs
+    } else {
+      console.error(
+        `[voice/config] whisper.extraArgs は配列である必要があります（受け取った値: ${JSON.stringify(raw.extraArgs)}）。既定値を使います`,
+      )
+    }
+  }
+  return out
 }
 
 /**
@@ -107,7 +149,7 @@ export function loadVoiceConfig(opts = {}) {
   if (!isPlainObject(raw)) raw = {}
 
   cached = {
-    whisper: mergeSection(DEFAULTS.whisper, raw.whisper),
+    whisper: validateWhisperSection(raw.whisper),
     vad: validateVadSection(raw.vad),
     debug: validateDebugSection(raw.debug),
   }
