@@ -4,9 +4,7 @@
 
 ## v0.8.0（2026-09-14）
 
-- ボイスチャンネル対応（発話の文字起こしのみ、読み上げは未対応）。親 issue #61、子issue #62〜#67
-  （voice プロセスの骨格 PR #69、Silero VAD PR #71、whisper-server 連携 PR #72、channel サーバー側の中継 PR #68、
-  `/voice` join・leave・status PR #70、ドキュメント・検証手順 PR #77）
+- ボイスチャンネル対応（発話の文字起こしのみ、読み上げは未対応）。親 issue #61、子issue #62〜#67 （voice プロセスの骨格 PR #69、Silero VAD PR #71、whisper-server 連携 PR #72、channel サーバー側の中継 PR #68、 `/voice` join・leave・status PR #70、ドキュメント・検証手順 PR #77）
 - #73 入室が間欠的に Ready に到達しない症状への自動リトライ（PR #75）
 - #74 文字起こしを VC のテキストチャットへ自動投稿（PR #76）
 
