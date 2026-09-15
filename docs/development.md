@@ -53,7 +53,9 @@ scripts/restart-helper.sh           /restart の裏方（claude の終了待ち 
 scripts/statusline_dump.py          ステータスライン JSON を保存するラッパー（古いダンプの掃除つき）
 scripts/discord_presence_check.py   自 Bot のプレゼンスを読む確認用（Presence Intent が必要）
 scripts/setup-voice.sh              voice/ の導入（whisper.cpp、モデル、voice.json の雛形、npm install）。冪等
-docs/migration-plan.md              移植の手順書と公開前チェックリスト
+docs/verify/                        繰り返し使う確認手順（voice.md、0.7.1.md）
+docs/archive/migration-plan.md      移植の手順書と公開前チェックリスト（完了した作業の記録）
+docs/changelog.md                   版ごとの変更履歴
 docs/diagrams/                      図の元ファイル（.drawio）と書き出した PNG。編集は draw.io で、書き出しは drawio CLI（--scale 3）
 ```
 
@@ -106,4 +108,5 @@ node voice/dev/verify-vad.js <WAVファイルまたはディレクトリ> [...]
 
 ## 移植の経緯
 
-手順書と公開前チェックリストは [migration-plan.md](migration-plan.md) にあります。
+手順書と公開前チェックリストは [archive/migration-plan.md](archive/migration-plan.md) にあります（完了した作業の記録）。
+版ごとの変更点は [changelog.md](changelog.md) にまとめています。
