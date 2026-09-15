@@ -99,12 +99,12 @@
                     <mxGeometry x="970" y="578" width="140" height="40" as="geometry"/>
                 </mxCell>
 
-                <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=1;exitY=0.5;entryX=0.92;entryY=0;" parent="1" source="statusline" target="channel" edge="1">
+                <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=1;exitY=0.5;entryX=0.88;entryY=0;" parent="1" source="statusline" target="channel" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
                             <mxPoint x="1480" y="780"/>
                             <mxPoint x="1480" y="100"/>
-                            <mxPoint x="800" y="100"/>
+                            <mxPoint x="783" y="100"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
