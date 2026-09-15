@@ -53,6 +53,9 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
   `voice.readyTimeoutS`〈既定 8 秒〉を追加し、1 回だけ自動的に接続をやり直す）と #74（文字起こしを
   `🎤 <表示名>: <文字起こし>` の形で VC のテキストチャットへ自動投稿。`access.json` の `voiceEcho: false`
   で無効化可）をマージ。#67 のドキュメント・図に反映済み
+- 完了（2026-09-15）: 構成図の後片付け。#78（PR #79、voice.sock を垂直 1 本・音声の線を折れ 1 回に）と
+  #80（PR #81、全部の矢印を箱の辺に垂直に出入りさせ、ラベルを線・箱・レーン枠線から離す）をマージ。
+  対象は docs/diagrams/architecture.drawio と voice-architecture.drawio（voice-sequence は未変更）
 - 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り（スキル経由でクリア前に要点を保存できる利点を残す）。開発フラグの不具合は anthropics/claude-code#82939 で既報のため報告しない（2026-09-03 判断）
 - 現在の稼働: 管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。
   フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。
