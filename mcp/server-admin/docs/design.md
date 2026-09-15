@@ -167,4 +167,4 @@ Discord API にはレート制限がある。httpx で直接呼び出すため�
   `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/.env` から読みます。`DISCORD_GUILD_ID` が無いときは
   Bot が参加しているサーバーを問い合わせて自動で決めます
 - レート制限は 429 を受けたときのリトライだけ実装しています。`X-RateLimit-Remaining` を見た先読みの待機は入れていません
-- 「8. 開発ステップ」は完了済みです。プラグイン化の経緯はリポジトリ直下の `docs/migration-plan.md` にあります
+- 「8. 開発ステップ」は完了済みです。プラグイン化の経緯はリポジトリ直下の `docs/archive/migration-plan.md` にあります
