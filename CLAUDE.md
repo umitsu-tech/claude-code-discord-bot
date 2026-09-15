@@ -3,7 +3,7 @@
 > このファイルは、このリポジトリで作業する Claude Code 向けの開発者の作業ルールと進捗メモです。利用者向けの説明は README.md にあります。
 
 Claude Code の公式 Discord プラグインに無い機能を補う自作プラグイン。詳細は README.md、
-移植の手順書は docs/migration-plan.md を参照。
+移植の手順書は docs/archive/migration-plan.md を参照。
 
 ## 開発ルール
 
@@ -31,36 +31,13 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 
 ## 現在の状況
 
-- 最終更新: 2026-09-14
-- 完了済み: issue #1〜#9 をすべてクローズ。サーバー管理 MCP の取り込み、discord-workspace の切り替え、
-  setup-channel とフックの移植、ギルド ID 自動判定、ダンプ掃除、公式 Discord プラグインのフォーク（channel/、Apache-2.0）と
-  プレゼンス統合、スラッシュコマンド /ctx /clear、ワークスペース用コマンド（追加定義 ~/.claude/discord-bot/commands.json）、公開準備
-- issue の外で実施: docs/diagrams/ に構成図と処理フロー図を追加（drawio と PNG）、README の文章と表を整理（v0.6.7）
-- 完了（2026-09-05）: issue #47（/model /effort）を PR #50、issue #46（/restart）を PR #51 でマージ（v0.7.1）。
-  どちらも channel サーバー側で処理する方式（session-control.ts が tmux ペインへ send-keys、/restart は
-  scripts/restart-helper.sh を切り離して起動）。スキル方式（PR #49）とスーパーバイザー方式（PR #48）は取り下げた。
-  実機確認は 2026-09-05 に完了（手順は docs/verify-0.7.1.md）
-- 完了（2026-09-14）: ボイスチャンネル対応（親 issue #61）の #62〜#67 が完了（v0.8.0）。
-  #62（voice プロセスの骨格、`voice/` を新設）→ #63（Silero VAD による発話区間の切り出し、receiver.js）→
-  #64（whisper-server の起動管理と文字起こし、transcriber.js・scripts/setup-voice.sh）→
-  #65（channel サーバー側の中継、channel/voice-control.ts）→ #66（`/voice` join・leave・status、
-  channel/voice-command.ts）→ #67（ドキュメント 3 枚〈architecture 再構成 / voice-architecture /
-  voice-sequence〉、docs/verify-voice.md、README・how-it-works・development の更新）。Node で動く別
-  プロセスが Unix ドメインソケット `~/.claude/discord-bot/voice.sock` で待ち受け、Gateway は channel
-  サーバーの 1 本を借りて入退室する。文字起こしはローカルの whisper.cpp（whisper-server 常駐 + 発話ごとに
-  /inference）。読み上げは未対応（初回スコープ外）
-- 完了（2026-09-14）: #73（入室が間欠的に Ready に到達しない症状への再試行。`voice.json` に
-  `voice.readyTimeoutS`〈既定 8 秒〉を追加し、1 回だけ自動的に接続をやり直す）と #74（文字起こしを
-  `🎤 <表示名>: <文字起こし>` の形で VC のテキストチャットへ自動投稿。`access.json` の `voiceEcho: false`
-  で無効化可）をマージ。#67 のドキュメント・図に反映済み
-- 完了（2026-09-15）: 構成図の後片付け。#78（PR #79、voice.sock を垂直 1 本・音声の線を折れ 1 回に）と
-  #80（PR #81、全部の矢印を箱の辺に垂直に出入りさせ、ラベルを線・箱・レーン枠線から離す）をマージ。
-  対象は docs/diagrams/architecture.drawio と voice-architecture.drawio（voice-sequence は未変更）
-- 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り（スキル経由でクリア前に要点を保存できる利点を残す）。開発フラグの不具合は anthropics/claude-code#82939 で既報のため報告しない（2026-09-03 判断）
-- 現在の稼働: 管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。
-  フォーク版 channel サーバーが「Channel notifications registered」になり、公式プラグインは使っていない。
-  Discord 側の動作確認は 2026-09-03 19:50 に完了（通常メッセージ、/ctx と /task のスラッシュコマンドで結果が投稿されることを確認）
-- リモート: https://github.com/umitsu-tech/claude-code-discord-bot（2026-09-03 に Public 化）。
-  マーケットプレイス `ryuki-plugins` の定義は 2026-09-07 に https://github.com/umitsu-tech/claude-plugins へ移した（Issue #57）。
-  ローカルの marketplace 登録はディレクトリ参照のままで、GitHub 経由には切り替えていない
-- 関連リソース: discord-workspace の `memory/tasks.md`（台帳の入口）と `docs/discord-context-control.md`（設計メモ）
+- 最終更新: 2026-09-16
+- いまの版と稼働状態: v0.8.0。管理者設定 allowedChannelPlugins で承認したうえで
+  `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。フォーク版 channel サーバーが送受信を担当し、
+  公式プラグインは使っていない
+- 直近の完了: 構成図の後片付け #78/#80（PR #79・#81） / voice の入室リトライと文字起こし自動投稿 #73/#74（PR #75・#76） / ボイスチャンネル対応 #61〜#67（v0.8.0）
+- 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り
+- 履歴: docs/changelog.md
+- 関連リソース: リポジトリ https://github.com/umitsu-tech/claude-code-discord-bot（Public）、
+  マーケットプレイス https://github.com/umitsu-tech/claude-plugins、discord-workspace の
+  `memory/tasks.md`（台帳の入口）と `docs/discord-context-control.md`（設計メモ）

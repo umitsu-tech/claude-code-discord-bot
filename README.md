@@ -157,10 +157,15 @@ Bot のステータスは、Claude が応答してステータスラインが再
 
 ## ドキュメント
 
-- [docs/background.md](docs/background.md) 背景と考え方、関連記事
-- [docs/how-it-works.md](docs/how-it-works.md) /clear の流れ、Bot ステータス、スラッシュコマンド（/model・/effort・/restart・/voice を含む）、サーバー管理 MCP、音声の流れ、制約
-- [docs/development.md](docs/development.md) 更新のしかた、ディレクトリ構成、移植の経緯
-- [docs/verify-voice.md](docs/verify-voice.md) 音声機能の通し検証手順
+| ファイル | 区分 | 内容 |
+| --- | --- | --- |
+| [docs/background.md](docs/background.md) | 説明 | 背景と考え方、関連記事 |
+| [docs/how-it-works.md](docs/how-it-works.md) | 説明 | /clear の流れ、Bot ステータス、スラッシュコマンド（/model・/effort・/restart・/voice を含む）、サーバー管理 MCP、音声の流れ、制約 |
+| [docs/development.md](docs/development.md) | 手順 | 更新のしかた、ディレクトリ構成、voice の導入・動作確認、移植の経緯 |
+| [docs/verify/voice.md](docs/verify/voice.md) | 手順 | 音声機能の通し検証手順 |
+| [docs/verify/0.7.1.md](docs/verify/0.7.1.md) | 手順 | /model・/effort・/restart の実機確認手順 |
+| [docs/archive/migration-plan.md](docs/archive/migration-plan.md) | 記録 | 2026-09-03 の移植手順書（完了した作業の記録） |
+| [docs/changelog.md](docs/changelog.md) | 記録 | 版ごとの変更履歴 |
 
 ## ライセンス
 
