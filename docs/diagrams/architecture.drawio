@@ -119,10 +119,10 @@
                     <mxGeometry x="840" y="655" width="100" height="26" as="geometry"/>
                 </mxCell>
 
-                <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0;exitY=0.25;entryX=0.7;entryY=1;" parent="1" source="voice" target="vc" edge="1">
+                <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0;exitY=0.5;entryX=0.5;entryY=1;" parent="1" source="voice" target="vc" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="129" y="815"/>
+                            <mxPoint x="101" y="835"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
