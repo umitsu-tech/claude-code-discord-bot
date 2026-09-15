@@ -14,104 +14,127 @@
                     <mxGeometry x="31" y="380" width="140" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="plugin" value="discord-bot プラグイン" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F5FB;strokeColor=#6C8EBF;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="130" width="470" height="590" as="geometry"/>
+                    <mxGeometry x="400" y="130" width="560" height="590" as="geometry"/>
                 </mxCell>
                 <mxCell id="channel" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;channel サーバー&lt;br&gt;（公式プラグインのフォーク、bun）&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="190" width="390" height="80" as="geometry"/>
+                    <mxGeometry x="440" y="190" width="390" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="admin" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;server-admin MCP&lt;br&gt;（Python、uv）&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="320" width="360" height="80" as="geometry"/>
+                    <mxGeometry x="440" y="320" width="360" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="skills" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;スキル&lt;br&gt;ctx / clear / setup-channel / access&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="450" width="360" height="80" as="geometry"/>
+                    <mxGeometry x="440" y="450" width="360" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="actionNote" value="action: /model /effort /restart /voice（スキルではない）" style="text;html=1;fontSize=12;align=center;verticalAlign=middle;fontColor=#6C8EBF;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="536" width="360" height="38" as="geometry"/>
+                    <mxGeometry x="440" y="536" width="360" height="38" as="geometry"/>
                 </mxCell>
                 <mxCell id="hooks" value="フック（セッション内で動く）&lt;br&gt;SessionStart: notify-clear-done&lt;br&gt;PostToolUse: remind-channel-access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="580" width="360" height="100" as="geometry"/>
+                    <mxGeometry x="440" y="580" width="360" height="100" as="geometry"/>
                 </mxCell>
                 <mxCell id="voiceLane" value="voice プロセス（別プロセス、Node）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF2EA;strokeColor=#82B366;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="750" width="470" height="280" as="geometry"/>
+                    <mxGeometry x="400" y="750" width="460" height="310" as="geometry"/>
                 </mxCell>
                 <mxCell id="voice" value="voice プロセス&lt;br&gt;入退室・ソケット待ち受け・VAD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="795" width="390" height="80" as="geometry"/>
+                    <mxGeometry x="440" y="795" width="390" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="whisper" value="whisper-server&lt;br&gt;（文字起こし、ローカル）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="360" y="930" width="390" height="80" as="geometry"/>
+                    <mxGeometry x="440" y="960" width="390" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="cc" value="Claude Code セッション（tmux）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF5EB;strokeColor=#D79B00;dashed=1;verticalAlign=top;fontStyle=1;fontSize=17;" parent="1" vertex="1">
-                    <mxGeometry x="900" y="130" width="380" height="730" as="geometry"/>
+                    <mxGeometry x="1120" y="130" width="380" height="730" as="geometry"/>
                 </mxCell>
                 <mxCell id="claude" value="&lt;font style=&quot;font-size: 24px;&quot;&gt;Claude&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="940" y="190" width="300" height="490" as="geometry"/>
+                    <mxGeometry x="1160" y="190" width="300" height="490" as="geometry"/>
                 </mxCell>
                 <mxCell id="statusline" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;ステータスラインの JSON&lt;br&gt;~/.claude/tmp/statusline/&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=16;" parent="1" vertex="1">
-                    <mxGeometry x="940" y="740" width="300" height="80" as="geometry"/>
+                    <mxGeometry x="1160" y="740" width="300" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="e1" value="メッセージ、スラッシュコマンド" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=none;" parent="1" source="user" target="discord" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="130" as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.13;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" parent="1" source="discord" target="channel" edge="1">
+
+                <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="user" target="discord" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e2label" value="Gateway / REST&lt;br&gt;メッセージ・プレゼンス・音声イベントの中継" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=13;align=center;verticalAlign=middle;" parent="1" vertex="1">
-                    <mxGeometry x="95" y="183" width="360" height="38" as="geometry"/>
+                <mxCell id="e1label" value="メッセージ、スラッシュコマンド" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=13;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="195" y="98" width="230" height="26" as="geometry"/>
                 </mxCell>
-                <mxCell id="e3" value="REST&lt;div&gt;（チャンネル、スレッド）&lt;/div&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0;exitY=0.5;entryX=1;entryY=0.55;labelBackgroundColor=none;" parent="1" source="admin" target="discord" edge="1">
-                    <mxGeometry x="0.0007" y="20" relative="1" as="geometry">
-                        <mxPoint as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e4" value="チャンネル通知 →&lt;br&gt;← reply / react / fetch_messages&lt;br&gt;（文字起こしは meta.via: voice）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.0816;labelBackgroundColor=none;" parent="1" source="channel" target="claude" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint y="-26" as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e5" value="server-admin のツールを呼ぶ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0;exitY=0.347;entryX=1;entryY=0.5;labelBackgroundColor=none;" parent="1" source="claude" target="admin" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint y="-14" as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e6" value="Skill ツールで実行" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0;exitY=0.612;entryX=1;entryY=0.5;labelBackgroundColor=none;" parent="1" source="claude" target="skills" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint y="-14" as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e7" value="&lt;span&gt;セッション開始時&lt;/span&gt;&lt;div&gt;&lt;span&gt;ツール実行後に発火&lt;/span&gt;&lt;/div&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;dashed=1;exitX=0;exitY=0.898;entryX=1;entryY=0.5;labelBackgroundColor=none;" parent="1" source="claude" target="hooks" edge="1">
-                    <mxGeometry y="-20" relative="1" as="geometry">
-                        <mxPoint as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e8" value="20 秒ごとに読む" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=none;" parent="1" source="statusline" target="channel" edge="1">
-                    <mxGeometry x="0.5839" y="-10" relative="1" as="geometry">
-                        <Array as="points">
-                            <mxPoint x="1320" y="780"/>
-                            <mxPoint x="1320" y="170"/>
-                            <mxPoint x="555" y="170"/>
-                        </Array>
-                        <mxPoint as="offset"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=1;entryX=1;entryY=0;labelBackgroundColor=#ffffff;" parent="1" source="channel" target="voice" edge="1">
+
+                <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.1333;entryX=0;entryY=0.5;" parent="1" source="discord" target="channel" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e9label" value="voice.sock&lt;br&gt;join/leave/status/gateway ⇄&lt;br&gt;joined/left/status/error/transcript" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=left;verticalAlign=middle;" parent="1" vertex="1">
-                    <mxGeometry x="760" y="500" width="130" height="90" as="geometry"/>
+                <mxCell id="e2label" value="Gateway / REST&lt;br&gt;メッセージ・プレゼンス&lt;br&gt;音声イベントの中継" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=13;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="150" width="190" height="54" as="geometry"/>
                 </mxCell>
-                <mxCell id="e10" value="音声 UDP/WebSocket&lt;br&gt;（Opus 受信のみ）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0;exitY=0;entryX=1;entryY=1;labelBackgroundColor=none;" parent="1" source="voice" target="vc" edge="1">
+
+                <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0;exitY=0.5;entryX=1;entryY=0.5667;" parent="1" source="admin" target="discord" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3label" value="REST&lt;br&gt;（チャンネル、スレッド）" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=13;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="205" y="308" width="170" height="40" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.0816;" parent="1" source="channel" target="claude" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4label" value="チャンネル通知 →&lt;br&gt;← reply / react /&lt;br&gt;fetch_messages&lt;br&gt;（文字起こしは&lt;br&gt;meta.via: voice）" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="245" width="140" height="110" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0;exitY=0.3469;entryX=1;entryY=0.5;" parent="1" source="claude" target="admin" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5label" value="server-admin の&lt;br&gt;ツールを呼ぶ" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="372" width="140" height="42" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=0;exitY=0.6122;entryX=1;entryY=0.5;" parent="1" source="claude" target="skills" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6label" value="Skill ツールで実行" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="450" width="140" height="26" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;dashed=1;exitX=0;exitY=0.898;entryX=1;entryY=0.5;" parent="1" source="claude" target="hooks" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7label" value="セッション開始時&lt;br&gt;ツール実行後に発火" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="578" width="140" height="40" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;exitX=1;exitY=0.5;entryX=0.88;entryY=0;" parent="1" source="statusline" target="channel" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="171" y="795"/>
+                            <mxPoint x="1480" y="780"/>
+                            <mxPoint x="1480" y="100"/>
+                            <mxPoint x="783" y="100"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e11" value="/inference（HTTP、文字起こし）" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.75;exitY=1;entryX=0.75;entryY=0;labelBackgroundColor=none;align=left;" parent="1" source="voice" target="whisper" edge="1">
+                <mxCell id="e8label" value="20 秒ごとに読む" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=13;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="1000" y="60" width="150" height="26" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.97;exitY=1;entryX=0.97;entryY=0;" parent="1" source="channel" target="voice" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9label" value="voice.sock" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=13;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="840" y="655" width="100" height="26" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0;exitY=0.5;entryX=0.5;entryY=1;" parent="1" source="voice" target="vc" edge="1">
                     <mxGeometry relative="1" as="geometry">
-                        <mxPoint x="60" y="0" as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="101" y="835"/>
+                        </Array>
                     </mxGeometry>
+                </mxCell>
+                <mxCell id="e10label" value="音声 UDP&lt;br&gt;/WebSocket&lt;br&gt;（Opus 受信のみ）" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="590" width="110" height="62" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="voice" target="whisper" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e11label" value="/inference&lt;br&gt;（HTTP、&lt;br&gt;文字起こし）" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="892" width="100" height="50" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
