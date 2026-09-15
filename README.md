@@ -5,170 +5,89 @@
 開発者が運用している Discord サーバー管理 Bot「kuroko-chan」の中身です。Claude Code のプラグインとして動きます。
 Discord 社および Anthropic 社とは無関係の、非公式なコミュニティ製プラグインです。
 
-Claude Code には、Discord のメッセージをそのまま会話に流し込む channel 機能（`claude --channels ...`）があります。
-ただし公式の Discord プラグインが担当するのはメッセージの送受信だけで、コンテキストの残量を見たりクリアしたりといった
-セッションの管理も、チャンネルやスレッドを作るといったサーバーの管理もできません。
-このプラグインは、公式プラグインの channel サーバーをフォークして土台にし、その上にセッション管理・サーバー管理・
-Bot ステータス表示を載せたものです。作った経緯と考え方は [docs/background.md](docs/background.md) にまとめています。
-
-## 全体像
+Claude Code の channel 機能（`claude --channels ...`）で Discord のメッセージを会話に流し込むとき、公式の Discord プラグインが
+担当するのはメッセージの送受信だけです。このプラグインは公式プラグインの channel サーバーをフォークして土台にし、
+その上にセッション管理（`/ctx` `/clear` `/restart` `/model` `/effort`）、サーバー管理、Bot ステータス表示、音声入力を載せたものです。
+作った経緯と考え方は [docs/background.md](docs/background.md) にあります。
 
 ![全体構成](docs/diagrams/architecture.png)
 
 ## 機能
 
-| 機能 | 内容 |
+| 機能 | Discord での操作 |
 | --- | --- |
-| Discord との送受信 | 公式プラグインからフォークした channel サーバー（`channel/`）<br>reply / react / edit_message / fetch_messages / download_attachment |
-| アクセス管理 | `/discord-bot:access` でペアリング承認・allowlist・チャンネルの受信設定<br>`/discord-bot:configure` で Bot トークンの保存<br>設定ファイルは公式と同じ `~/.claude/channels/discord/` |
-| コンテキスト使用量の表示 | Discord で `/ctx`<br>ctx / 5h / 7d の使用率をコードブロックで返す |
-| Discord からのクリア | Discord で `/clear`<br>宣言 → tmux ペインに `/clear` を送信 → 新セッション開始時に「クリアしたよ」を自動投稿 |
-| Discord からの再起動 | Discord で `/restart`（`resume: yes` で会話を引き継ぐ）<br>`/exit` を送信 → `claude update` → 起動し直し → 「再起動したよ（2.1.261 → 2.1.262）」を自動投稿 |
-| Discord からのモデル・effort 切り替え | Discord で `/model alias:sonnet` `/effort level:low`<br>tmux ペインに送信 → 切り替わりを検知したら「切り替えたよ」を自動投稿 |
-| Bot ステータスに使用量を常時表示 | Bot のアクティビティを `ctx 53% · 5h 46% · 7d 17%` に更新<br>ctx 80% 以上で赤 / セッション無しで黄。モデル名の横に effort も表示 |
-| サーバー管理 MCP | チャンネル・カテゴリ・フォーラムスレッドの作成・編集・削除・一覧（`server-admin` 9 ツール） |
-| チャンネル作成ワークフロー | `/discord-bot:setup-channel`<br>作成 → access.json の受信設定 → 受信テスト<br>作成直後にフックが受信設定を促す |
-| スラッシュコマンド | `/ctx` `/clear` `/model` `/effort` `/restart` を同梱<br>`~/.claude/discord-bot/commands.json` に書けば任意のスキルを引数付きで呼べる |
-| 起動ランチャー | `scripts/start-discord.sh` が tmux セッション `discord` で claude を起動<br>二重起動は防ぐ |
-| 音声入力（聞き取りのみ） | Discord で `/voice join`・`leave`・`status`<br>発話を whisper.cpp でローカル文字起こしし、ボイスチャンネルのテキストチャットに返す（読み上げは未対応） |
+| メッセージの送受信 | 公式プラグインからフォークした channel サーバー（`channel/`）。アクセス管理は `/discord-bot:access` |
+| コンテキストの表示とクリア | `/ctx` で ctx / 5h / 7d の使用率、`/clear` でセッションをクリア |
+| 再起動とモデル切り替え | `/restart`（`claude update` を挟む）、`/model alias:sonnet`、`/effort level:low` |
+| Bot ステータスに使用量を表示 | アクティビティを `ctx 53% · 5h 46% · 7d 17%` に常時更新（ctx 80% 以上で赤） |
+| サーバー管理 | チャンネル・カテゴリ・フォーラムスレッドの作成・編集・削除・一覧（`server-admin` MCP、9 ツール）。`/discord-bot:setup-channel` で作成から受信テストまで |
+| スラッシュコマンドの追加 | `~/.claude/discord-bot/commands.json` に書けば任意のスキルを引数付きで呼べる |
+| 音声入力（聞き取りのみ） | `/voice join`・`leave`・`status`。発話を whisper.cpp でローカル文字起こしし、テキストチャットに返す |
+
+使い方の詳細と返事の例は [docs/usage.md](docs/usage.md) にあります。
 
 ## セットアップ
 
-必要なものは tmux、uv、bun と Discord の Bot です。Bot は Message Content Intent を有効にしたうえで、
-`bot` と `applications.commands` の 2 つのスコープでサーバーに招待してください。`applications.commands` が無いと
-スラッシュコマンドを登録できません。Bot の作り方は `channel/UPSTREAM-README.md` の Quick Setup 1〜3 と同じです。
+必要なものは tmux、uv、bun と Discord の Bot です。Bot は Message Content Intent を有効にし、`bot` と `applications.commands` の
+2 つのスコープでサーバーに招待してください（Bot の作り方は `channel/UPSTREAM-README.md` の Quick Setup 1〜3 と同じです）。
 動作確認は macOS で行っています。
 
-音声入力（`/voice`）を使うなら、Node.js 22.12 以上と whisper.cpp（`brew install whisper.cpp`）も必要です。
-セットアップの手順 6 を参照してください。
+1. プラグインを入れる。公式の Discord プラグインを使っていた場合は無効にしてください（同じトークンで Gateway 接続が 2 本になり、返信が二重になります）
 
-### 1. プラグインを入れる
+   ```sh
+   claude plugin marketplace add umitsu-tech/claude-plugins
+   cd <Discord セッションに使うプロジェクト>
+   claude plugin install discord-bot@ryuki-plugins --scope project
+   ```
 
-Discord セッションに使うプロジェクトのディレクトリで、プロジェクトスコープで有効化します。
-公式の Discord プラグインを使っていた場合は無効にしてください。同じトークンで Gateway 接続が 2 本になり、返信が二重になります。
+2. Bot トークンを保存する。公式プラグインで設定済みならそのまま使えます
 
-```sh
-claude plugin marketplace add umitsu-tech/claude-plugins
-cd <Discord セッションに使うプロジェクト>
-claude plugin install discord-bot@ryuki-plugins --scope project
-```
+   ```
+   /discord-bot:configure <トークン>
+   ```
 
-### 2. Bot トークンを保存する
+3. ステータスラインの JSON を保存する。`settings.json` の `statusLine.command` をラッパー経由にします
 
-公式プラグインで設定済みならそのまま使えます。ギルド ID は、Bot が 1 つのサーバーにしか入っていなければ省略できます。
+   ```json
+   { "statusLine": { "type": "command", "command": "uv run ~/path/to/claude-code-discord-bot/scripts/statusline_dump.py -- <元のコマンド>" } }
+   ```
 
-```
-/discord-bot:configure <トークン>
-```
+4. channel プラグインとして承認する。Claude Code は公式以外の channel プラグインからの通知を既定で捨てるため、
+   管理者設定 `/Library/Application Support/ClaudeCode/managed-settings.json`（macOS、要 sudo）に次を書きます
 
-### 3. ステータスラインの JSON を保存する
+   ```json
+   { "allowedChannelPlugins": [ { "plugin": "discord-bot", "marketplace": "ryuki-plugins" }, { "plugin": "discord", "marketplace": "claude-plugins-official" } ] }
+   ```
 
-`/ctx` と Bot ステータス表示は、Claude Code がステータスライン用に渡す JSON を読みます。
-`settings.json` の `statusLine.command` を次のようにラッパー経由にするのが簡単です。
+   承認しない場合は `DISCORD_BOT_CHANNEL_MODE=official` で起動すると公式プラグインが送受信を担当します（スラッシュコマンドは使えません）。
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "uv run ~/path/to/claude-code-discord-bot/scripts/statusline_dump.py -- <元のコマンド>"
-  }
-}
-```
+5. 起動する。tmux セッション `discord` の中で claude が動きます。初回は DM に届くペアリングコードを `/discord-bot:access pair <コード>` で承認してください
 
-### 4. channel プラグインとして承認する
+   ```sh
+   ~/path/to/claude-code-discord-bot/scripts/start-discord.sh                       # 新規
+   ~/path/to/claude-code-discord-bot/scripts/start-discord.sh --resume <session-id> # 会話を引き継ぐ
+   ```
 
-Claude Code は公式以外の channel プラグインからの通知を既定で捨てるため、このプラグインで Discord と送受信するには
-承認リストに載せる必要があります。管理者設定 `/Library/Application Support/ClaudeCode/managed-settings.json`
-（macOS、要 sudo）に次を書きます。
+   起動画面に「messages from plugin:discord-bot@ryuki-plugins inject directly in this session」と出て、
+   「not on the approved channels allowlist」の行が無ければ届く状態です。
 
-```json
-{
-  "allowedChannelPlugins": [
-    { "plugin": "discord-bot", "marketplace": "ryuki-plugins" },
-    { "plugin": "discord", "marketplace": "claude-plugins-official" }
-  ]
-}
-```
-
-承認しない場合は、`DISCORD_BOT_CHANNEL_MODE=official` を付けて起動すると公式プラグインが送受信を担当し、
-このプラグインは Bot ステータス表示・サーバー管理 MCP・スキルだけを受け持ちます。この構成ではスラッシュコマンドは使えません。
-
-### 5. 起動する
-
-プロジェクトのディレクトリで実行します。tmux セッション `discord` の中で claude が動きます。
-初回は DM に届くペアリングコードを `/discord-bot:access pair <コード>` で承認してください。
-
-```sh
-~/path/to/claude-code-discord-bot/scripts/start-discord.sh                       # 新規
-~/path/to/claude-code-discord-bot/scripts/start-discord.sh --resume <session-id> # 会話を引き継ぐ
-```
-
-起動画面の上のほうに「messages from plugin:discord-bot@ryuki-plugins inject directly in this session」と出て、
-その下に「not on the approved channels allowlist」の行が無ければ、Discord からのメッセージが届く状態です。
-
-### 6. 音声入力を使う場合（任意）
-
-`scripts/setup-voice.sh` を実行すると、whisper.cpp の導入（Homebrew）、文字起こしモデルのダウンロード、
-`voice.json` の雛形作成、`voice/` の `npm install` を一度に行います（何度実行しても、既にある分はスキップします）。
-
-```sh
-scripts/setup-voice.sh
-```
-
-サーバーにボイスチャンネルを作り、Bot に `Connect` 権限を与えてください。井戸端のような、ボイスチャンネルに
-付属するテキストチャットから `/voice join` を打つには、そのチャンネルを `access.json` の `groups` に
-登録しておく必要があります（スラッシュコマンドは受信設定済みのチャンネルでしか受け付けないため）。
-`/discord-bot:setup-channel` かボイスチャンネルの ID を指定した `/discord-bot:access group add` で登録してください。
-
-## 使い方
-
-Discord のチャンネルで `/ctx` と送ると、次のような返事が来ます。
-
-```
-コンテキスト使用量
-ctx ■■■■■□□□□□ 54%  544.8K / 1000.0K tokens
-5h  ■■■■■□□□□□ 48%  リセット 09/03 00:00
-7d  ■□□□□□□□□□ 13%  リセット 09/06 19:00
-セッション 1c5a207c  Fable 5.1  計測 09/02 23:00:54  source statusline
-```
-
-`/clear` と送ると「クリアするね（今 54%）」と返事があり、数秒後に「コンテキストをクリアしたよ」が届きます。
-その次のメッセージから新しいセッションになります。作業途中の要点は、クリア前に台帳などへ書いておいてください。
-
-`/model alias:sonnet` `/effort level:low` と送ると「送ったよ」と返事があり、次のメッセージからそのモデル・effort で応対します。
-切り替わったことを検知できたときは、数秒後に「モデルを Sonnet 5 に切り替えたよ」のような通知が届きます。
-`/model` の引数指定はデフォルトとしても保存されるので、ターミナルで新しく開くセッションのモデルも変わります。
-`/effort` の `low`〜`xhigh` はモデルごとに保存され、`max` はこのセッション限り、`auto` は保存済みの設定をクリアします。
-
-`/restart` と送ると「再起動するね」と返事があり、数秒後にセッションが終了して新しい tmux ウィンドウで起動し直します。
-`claude update` を挟むので、Claude Code のバージョンを上げるときに使えます。起動が終わると「再起動したよ（2.1.261 → 2.1.262）」が届きます。
-会話は引き継がないので、`/clear` と同じく要点は先に書き出しておいてください。引き継ぎたいときは `/restart resume:yes` と送ります。
-ターミナルで `/exit` したときは今までどおり終了するだけです。
-
-Bot のステータスは、Claude が応答してステータスラインが再描画されるたびに更新されます。channel サーバーがその値を
-最大 20 秒ごとに拾うので、何もしていない間は変わりません。カードの 2 行目にある「更新 HH:MM」が、最後に再描画された時刻です。
-
-チャンネルを増やしたいときは、Discord で「〇〇というチャンネル作って」と頼むだけで済みます。
-`/discord-bot:setup-channel` が作成から受信設定、受信テストまで案内します。
-
-ボイスチャンネルで `/voice join` と送ると「〇〇に入りました」と本人にだけ返り、以後そのチャンネルでの
-発話がテキストチャットに文字起こしされて返ってきます。`/voice status` で入室状態と whisper の状態を、
-`/voice leave` で退室を確認できます。喋り終えてから 2〜3 秒後に文字になる感覚です（読み上げは未対応）。
+6. 音声入力を使う場合（任意）。Node.js 22.12 以上と whisper.cpp が必要です。`scripts/setup-voice.sh` が導入とモデルのダウンロードを一度に行います。
+   ボイスチャンネル側の準備は [docs/usage.md](docs/usage.md) の /voice の節を見てください
 
 ## ドキュメント
 
 | ファイル | 区分 | 内容 |
 | --- | --- | --- |
+| [docs/usage.md](docs/usage.md) | 説明 | Discord での使い方と返事の例 |
+| [docs/how-it-works.md](docs/how-it-works.md) | 説明 | /clear・/model・/restart・音声の流れ、サーバー管理 MCP、制約 |
 | [docs/background.md](docs/background.md) | 説明 | 背景と考え方、関連記事 |
-| [docs/how-it-works.md](docs/how-it-works.md) | 説明 | /clear の流れ、Bot ステータス、スラッシュコマンド（/model・/effort・/restart・/voice を含む）、サーバー管理 MCP、音声の流れ、制約 |
-| [docs/development.md](docs/development.md) | 手順 | 更新のしかた、ディレクトリ構成、voice の導入・動作確認、移植の経緯 |
+| [docs/development.md](docs/development.md) | 手順 | 更新のしかた、ディレクトリ構成、voice の導入・動作確認 |
 | [docs/verify/voice.md](docs/verify/voice.md) | 手順 | 音声機能の通し検証手順 |
 | [docs/verify/0.7.1.md](docs/verify/0.7.1.md) | 手順 | /model・/effort・/restart の実機確認手順 |
-| [docs/archive/migration-plan.md](docs/archive/migration-plan.md) | 記録 | 2026-09-03 の移植手順書（完了した作業の記録） |
 | [docs/changelog.md](docs/changelog.md) | 記録 | 版ごとの変更履歴 |
+| [docs/archive/migration-plan.md](docs/archive/migration-plan.md) | 記録 | 2026-09-03 の移植手順書 |
 
 ## ライセンス
 
-このリポジトリは MIT License です。ただし `channel/` は公式 Discord プラグイン
-（`anthropics/claude-plugins-official`、Apache-2.0）のフォークなので、そのディレクトリのファイルは
-Apache-2.0 のままです（`channel/LICENSE`）。改変した内容は `channel/server.ts` の先頭に書いてあります。
+MIT License です。ただし `channel/` は公式 Discord プラグイン（`anthropics/claude-plugins-official`、Apache-2.0）のフォークなので、
+そのディレクトリは Apache-2.0 のままです（`channel/LICENSE`）。改変した内容は `channel/server.ts` の先頭に書いてあります。
