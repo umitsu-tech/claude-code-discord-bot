@@ -130,11 +130,11 @@
                     <mxGeometry x="200" y="590" width="110" height="62" as="geometry"/>
                 </mxCell>
 
-                <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.75;exitY=1;entryX=0.75;entryY=0;" parent="1" source="voice" target="whisper" edge="1">
+                <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=14;endArrow=block;endFill=1;strokeWidth=1.5;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="voice" target="whisper" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e11label" value="/inference&lt;br&gt;（HTTP、&lt;br&gt;文字起こし）" style="rounded=0;whiteSpace=nowrap;html=1;fillColor=#ffffff;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1">
-                    <mxGeometry x="750" y="895" width="100" height="50" as="geometry"/>
+                    <mxGeometry x="650" y="892" width="100" height="50" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
