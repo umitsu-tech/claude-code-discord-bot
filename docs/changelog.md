@@ -2,8 +2,9 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
-## v0.8.1（2026-09-19）
+## v0.8.1〜v0.8.2（2026-09-19）
 
+- #87 `start-discord.sh` が `DISCORD_STATE_DIR` などを claude に引き継がない（tmux サーバーの環境が使われる）問題を修正。起動コマンドの頭に付けて渡す
 - #85 複数インスタンス運用に対応。`start-discord.sh` の二重起動判定を対象 tmux セッション内に限定し、`/discord-bot:configure` `/discord-bot:access` が `DISCORD_STATE_DIR` を読むようにし、README に「複数インスタンスで動かす」を追加
 
 ## v0.8.0（2026-09-14）
