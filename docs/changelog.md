@@ -2,8 +2,9 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
-## v0.8.1〜v0.8.2（2026-09-19）
+## v0.8.1〜v0.8.3（2026-09-19）
 
+- #89 環境変数の `DISCORD_BOT_TOKEN` が置き場の `.env` より優先され、別インスタンスが既存 Bot のトークンで接続する問題を修正。`restart-helper.sh` がトークンを unset してからランチャーを呼び、`start-discord.sh` は `DISCORD_STATE_DIR` 指定時に `env -u DISCORD_BOT_TOKEN` を付ける
 - #87 `start-discord.sh` が `DISCORD_STATE_DIR` などを claude に引き継がない（tmux サーバーの環境が使われる）問題を修正。起動コマンドの頭に付けて渡す
 - #85 複数インスタンス運用に対応。`start-discord.sh` の二重起動判定を対象 tmux セッション内に限定し、`/discord-bot:configure` `/discord-bot:access` が `DISCORD_STATE_DIR` を読むようにし、README に「複数インスタンスで動かす」を追加
 

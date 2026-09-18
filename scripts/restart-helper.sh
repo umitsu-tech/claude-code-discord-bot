@@ -132,8 +132,10 @@ cd "$cwd" || {
   exit 1
 }
 # このスクリプトは claude の子孫として起動されているので、claude 由来の環境変数（CLAUDECODE、CLAUDE_CODE_* など）と
-# 元のペインの TMUX / TMUX_PANE を引き継いでいる。tmux サーバーが一度消えていると新しい claude にそのまま渡るので外す
-for v in $(env | grep -E '^(CLAUDE|TMUX|MCP_)' | cut -d= -f1); do unset "$v"; done
+# 元のペインの TMUX / TMUX_PANE を引き継いでいる。tmux サーバーが一度消えていると新しい claude にそのまま渡るので外す。
+# DISCORD_BOT_TOKEN（失敗通知用）も同様に外す。残すと新しい tmux サーバーのグローバル環境に入り、以後 tmux で起動する
+# 別インスタンスまでこの Bot のトークンで接続してしまう（channel サーバーは環境変数のトークンを .env より優先する）
+for v in $(env | grep -E '^(CLAUDE|TMUX|MCP_|DISCORD_BOT_TOKEN=)' | cut -d= -f1); do unset "$v"; done
 log "ランチャーを実行する: ${launcher} ${resume_session:+--resume $resume_session}（cwd: ${cwd}, mode: ${mode}）"
 if [ -n "$resume_session" ]; then
   DISCORD_BOT_CHANNEL_MODE="$mode" "$launcher" --resume "$resume_session"
