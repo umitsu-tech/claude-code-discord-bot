@@ -129,6 +129,12 @@ Configure outbound behavior with `/discord-bot:access set <key> <value>`.
     }
   },
 
+  // Guild-wide default for channels with no "groups" entry. A "groups"
+  // entry still wins. Omit (or leave empty) to keep per-channel opt-in only.
+  "guilds": {
+    "<guild-id>": { "requireMention": true, "allowFrom": [] }
+  },
+
   // Case-insensitive regexes that count as a mention.
   "mentionPatterns": ["^hey claude\\b"],
 
