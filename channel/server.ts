@@ -129,6 +129,8 @@ type Access = {
   allowFrom: string[]
   /** Keyed on channel ID (snowflake), not guild ID. One entry per guild channel. */
   groups: Record<string, GroupPolicy>
+  /** ギルド単位の既定。groups に個別登録の無いチャンネルはこれに従う（groups が優先）。無ければ捨てる */
+  guilds: Record<string, GroupPolicy>
   pending: Record<string, PendingEntry>
   mentionPatterns?: string[]
   // delivery/UX config — optional, defaults live in the reply handler
@@ -149,6 +151,7 @@ function defaultAccess(): Access {
     dmPolicy: 'pairing',
     allowFrom: [],
     groups: {},
+    guilds: {},
     pending: {},
   }
 }
@@ -180,6 +183,7 @@ function readAccessFile(): Access {
       dmPolicy: parsed.dmPolicy ?? 'pairing',
       allowFrom: parsed.allowFrom ?? [],
       groups: parsed.groups ?? {},
+      guilds: parsed.guilds ?? {},
       pending: parsed.pending ?? {},
       mentionPatterns: parsed.mentionPatterns,
       ackReaction: parsed.ackReaction,
@@ -305,7 +309,7 @@ async function gate(msg: Message): Promise<GateResult> {
   const channelId = msg.channel.isThread()
     ? msg.channel.parentId ?? msg.channelId
     : msg.channelId
-  const policy = access.groups[channelId]
+  const policy = resolveGroupPolicy(access, channelId, msg.guildId)
   if (!policy) return { action: 'drop' }
   const groupAllowFrom = policy.allowFrom ?? []
   const requireMention = policy.requireMention ?? true
@@ -316,6 +320,11 @@ async function gate(msg: Message): Promise<GateResult> {
     return { action: 'drop' }
   }
   return { action: 'deliver', access }
+}
+
+/** チャンネルの受信設定を解決する。個別登録（groups）が優先、無ければギルドの既定（guilds）、どちらも無ければ undefined */
+function resolveGroupPolicy(access: Access, channelKey: string, guildId: string | null | undefined): GroupPolicy | undefined {
+  return access.groups[channelKey] ?? (guildId ? access.guilds[guildId] : undefined)
 }
 
 async function isMentioned(msg: Message, extraPatterns?: string[]): Promise<boolean> {
@@ -438,7 +447,7 @@ async function fetchAllowedChannel(id: string, opts: { allowActiveVoice?: boolea
     if (userId && access.allowFrom.includes(userId)) return ch
   } else {
     const key = ch.isThread() ? ch.parentId ?? ch.id : ch.id
-    if (key in access.groups) return ch
+    if (resolveGroupPolicy(access, key, 'guildId' in ch ? ch.guildId : undefined)) return ch
     // Bot が今まさに入室中のボイスチャンネルは、access.groups に無くても一時的に許可する（reply のみ）。
     // 通話の文字起こしへの返事を、そのボイスチャンネル付属のテキストチャットに出すため。
     // 退室すれば voiceActiveChannelId() が null に戻り、この許可も外れる
@@ -854,9 +863,9 @@ async function handleSlashCommand(interaction: ChatInputCommandInteraction): Pro
   const isDM = !interaction.inGuild()
   if (!isDM) {
     const key = ch && 'isThread' in ch && ch.isThread() ? ch.parentId ?? interaction.channelId : interaction.channelId
-    if (!(key in access.groups)) {
+    if (!resolveGroupPolicy(access, key, interaction.guildId)) {
       await interaction
-        .reply({ content: 'このチャンネルは受信設定されていません。/discord-bot:setup-channel か /discord-bot:access group add で登録してください。', flags: MessageFlags.Ephemeral })
+        .reply({ content: 'このチャンネルは受信設定されていません。/discord-bot:setup-channel か /discord-bot:access group add（サーバー全体なら guild add）で登録してください。', flags: MessageFlags.Ephemeral })
         .catch(() => {})
       return
     }

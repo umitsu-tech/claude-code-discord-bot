@@ -18,15 +18,19 @@ DISCORD_STATE_DIR = os.environ.get("DISCORD_STATE_DIR") or os.path.expanduser("~
 ACCESS_JSON = os.path.join(DISCORD_STATE_DIR, "access.json")
 
 
-def load_allow_from() -> str:
+def load_access() -> dict:
     try:
         with open(ACCESS_JSON) as f:
             data = json.load(f)
-        allow_from = data.get("allowFrom")
-        if isinstance(allow_from, list) and allow_from:
-            return json.dumps(allow_from, ensure_ascii=False)
+        return data if isinstance(data, dict) else {}
     except Exception:  # noqa: BLE001
-        pass
+        return {}
+
+
+def load_allow_from(data: dict) -> str:
+    allow_from = data.get("allowFrom")
+    if isinstance(allow_from, list) and allow_from:
+        return json.dumps(allow_from, ensure_ascii=False)
     return ""
 
 
@@ -36,7 +40,21 @@ def main() -> int:
     except Exception:  # noqa: BLE001
         pass
 
-    allow_from = load_allow_from()
+    data = load_access()
+    allow_from = load_allow_from(data)
+    guilds = data.get("guilds")
+    if isinstance(guilds, dict) and guilds:
+        # ギルド単位の既定があれば、個別登録が無くてもその設定で届く
+        message = (
+            "Discordチャンネルを作成した直後です。"
+            f"{ACCESS_JSON} にはギルド単位の既定受信設定（guilds: {', '.join(guilds)}）があるので、"
+            "新チャンネルがそのギルドにあれば個別の受信設定は不要です（既定は requireMention の値に従う。"
+            "このチャンネルだけ挙動を変えたいときだけ groups に個別登録する）。"
+            "(1) プロジェクトの CLAUDE.md や台帳にチャンネル一覧・構成表があれば更新する。"
+            "(2) ユーザーにテスト投稿してもらい受信を確認する（requireMention: true ならメンション付きで）。"
+        )
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": message}}))
+        return 0
 
     message = (
         "Discordチャンネルを作成した直後です。必ず次を実施してください: "

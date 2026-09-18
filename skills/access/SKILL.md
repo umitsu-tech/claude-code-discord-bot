@@ -42,6 +42,9 @@ Arguments passed: `$ARGUMENTS`
   "groups": {
     "<channelId>": { "requireMention": true, "allowFrom": [] }
   },
+  "guilds": {
+    "<guildId>": { "requireMention": true, "allowFrom": [] }
+  },
   "pending": {
     "<6-char-code>": {
       "senderId": "...", "chatId": "...",
@@ -64,7 +67,7 @@ Parse `$ARGUMENTS` (space-separated). If empty or unrecognized, show status.
 
 1. Read `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/access.json` (handle missing file).
 2. Show: dmPolicy, allowFrom count and list, pending count with codes +
-   sender IDs + age, groups count.
+   sender IDs + age, groups count, guilds count.
 
 ### `pair <code>`
 
@@ -110,6 +113,22 @@ Parse `$ARGUMENTS` (space-separated). If empty or unrecognized, show status.
 ### `group rm <channelId>`
 
 1. Read, `delete groups[<channelId>]`, write.
+
+### `guild add <guildId>` (optional: `--no-mention`, `--allow id1,id2`)
+
+Guild-wide default. Channels in that guild with no `groups` entry follow
+this policy; a `groups` entry for a channel still wins. Use it for a bot
+that should answer @mentions anywhere in the server without registering
+each channel.
+
+1. Read (create default if missing).
+2. Set `guilds[<guildId>] = { requireMention: !hasFlag("--no-mention"),
+   allowFrom: parsedAllowList }`.
+3. Write.
+
+### `guild rm <guildId>`
+
+1. Read, `delete guilds[<guildId>]`, write.
 
 ### `set <key> <value>`
 
