@@ -28,6 +28,11 @@ for name in DISCORD_STATE_DIR DISCORD_BOT_STATE_DIR DISCORD_GUILD_ID DISCORD_BOT
     ENV_PREFIX="${ENV_PREFIX}${name}=$(printf '%q' "${!name}") "
   fi
 done
+# 置き場を指定して起動するときは、その置き場の .env をトークンの唯一の出どころにする。channel サーバーは環境変数の
+# DISCORD_BOT_TOKEN を .env より優先するので、tmux サーバーの環境などに別インスタンスのトークンが残っていると乗っ取られる
+if [ -n "${DISCORD_STATE_DIR:-}" ]; then
+  ENV_PREFIX="env -u DISCORD_BOT_TOKEN ${ENV_PREFIX}"
+fi
 if [ "${MODE}" = "fork" ]; then
   # 管理者設定 allowedChannelPlugins で承認済みの前提。--channels で普通に渡す
   CLAUDE_CMD="${ENV_PREFIX}claude --channels plugin:discord-bot@ryuki-plugins $*"
