@@ -2,6 +2,10 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
+## v0.8.1（2026-09-19）
+
+- #85 複数インスタンス運用に対応。`start-discord.sh` の二重起動判定を対象 tmux セッション内に限定し、`/discord-bot:configure` `/discord-bot:access` が `DISCORD_STATE_DIR` を読むようにし、README に「複数インスタンスで動かす」を追加
+
 ## v0.8.0（2026-09-14）
 
 - ボイスチャンネル対応（発話の文字起こしのみ、読み上げは未対応）。親 issue #61、子issue #62〜#67 （voice プロセスの骨格 PR #69、Silero VAD PR #71、whisper-server 連携 PR #72、channel サーバー側の中継 PR #68、 `/voice` join・leave・status PR #70、ドキュメント・検証手順 PR #77）

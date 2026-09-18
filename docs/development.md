@@ -51,7 +51,7 @@ docs/changelog.md                   版ごとの変更履歴
 docs/diagrams/                      図の元ファイル（.drawio）と書き出した PNG。編集は draw.io で、書き出しは drawio CLI（--scale 3）
 ```
 
-状態ファイルは `~/.claude/discord-bot/` に置きます。`/clear` 用が `pending-clear.json` と `clear-notify.log`、 `/restart` 用が `restart-done.json`（完了マーカー。起動し直した channel サーバーが読んで消す）と `restart.log`（補助スクリプトと `claude update` の記録）、voice プロセス用が `voice.sock`（channel とのやりとりに使う Unix ドメインソケット）と `voice.log` です。voice の設定は `voice.json`（whisper / vad / voice / debug セクション。無いときは既定値で動く）、文字起こし用モデルは `models/`（`scripts/setup-voice.sh` が Hugging Face から取得する。リポジトリには入れない）に置きます。 `voice.json` の `voice.readyTimeoutS`（既定 8）は、入室時に `VoiceConnectionStatus.Ready` への到達を 1 回あたり何秒待つかの上限です。タイムアウトしたら 1 回だけ接続をやり直すので、合計の待ち時間は最大でこの 2 倍（既定 16 秒）になります。channel 側の join タイムアウト（30 秒）に収まるようにしてあります。 Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`（`.env`、`access.json`）に置きます。
+状態ファイルは `~/.claude/discord-bot/`（環境変数 `DISCORD_BOT_STATE_DIR` で変更可）に置きます。`/clear` 用が `pending-clear.json` と `clear-notify.log`、 `/restart` 用が `restart-done.json`（完了マーカー。起動し直した channel サーバーが読んで消す）と `restart.log`（補助スクリプトと `claude update` の記録）、voice プロセス用が `voice.sock`（channel とのやりとりに使う Unix ドメインソケット）と `voice.log` です。voice の設定は `voice.json`（whisper / vad / voice / debug セクション。無いときは既定値で動く）、文字起こし用モデルは `models/`（`scripts/setup-voice.sh` が Hugging Face から取得する。リポジトリには入れない）に置きます。 `voice.json` の `voice.readyTimeoutS`（既定 8）は、入室時に `VoiceConnectionStatus.Ready` への到達を 1 回あたり何秒待つかの上限です。タイムアウトしたら 1 回だけ接続をやり直すので、合計の待ち時間は最大でこの 2 倍（既定 16 秒）になります。channel 側の join タイムアウト（30 秒）に収まるようにしてあります。 Discord の設定は公式プラグインと同じ `~/.claude/channels/discord/`（`.env`、`access.json`。環境変数 `DISCORD_STATE_DIR` で変更可）に置きます。複数インスタンスの分け方は README の「複数インスタンスで動かす」を参照してください。
 
 ## voice の導入
 
