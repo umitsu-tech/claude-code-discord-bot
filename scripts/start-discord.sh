@@ -20,11 +20,19 @@ DIR="$PWD"
 #   fork（既定）    : フォーク版を --channels に渡す。Claude Code は公式以外の channel を既定で捨てるので、
 #                    管理者設定 allowedChannelPlugins で承認しておく（README セットアップ 4）
 MODE="${DISCORD_BOT_CHANNEL_MODE:-fork}"
+# tmux の new-session / new-window で起動するコマンドは、呼び出し元のシェルではなく tmux サーバーの環境を引き継ぐ。
+# 複数インスタンス用に export した DISCORD_* が claude に届くよう、コマンド文字列の頭に NAME=value の形で付けて渡す
+ENV_PREFIX=""
+for name in DISCORD_STATE_DIR DISCORD_BOT_STATE_DIR DISCORD_GUILD_ID DISCORD_BOT_STATUSLINE_DIR; do
+  if [ -n "${!name:-}" ]; then
+    ENV_PREFIX="${ENV_PREFIX}${name}=$(printf '%q' "${!name}") "
+  fi
+done
 if [ "${MODE}" = "fork" ]; then
   # 管理者設定 allowedChannelPlugins で承認済みの前提。--channels で普通に渡す
-  CLAUDE_CMD="claude --channels plugin:discord-bot@ryuki-plugins $*"
+  CLAUDE_CMD="${ENV_PREFIX}claude --channels plugin:discord-bot@ryuki-plugins $*"
 else
-  CLAUDE_CMD="DISCORD_SLASH_COMMANDS=off claude --channels plugin:discord@claude-plugins-official $*"
+  CLAUDE_CMD="${ENV_PREFIX}DISCORD_SLASH_COMMANDS=off claude --channels plugin:discord@claude-plugins-official $*"
 fi
 
 # 対象セッションのペイン直下のプロセス（ペイン自身と子）に --channels 付き claude がいるか
