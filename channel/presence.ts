@@ -4,6 +4,7 @@
  * ステータスライン用に保存された JSON（~/.claude/tmp/statusline/<session_id>.json、statusline_dump.py が書く）
  * を 20 秒ごとに読み、この MCP サーバーを起動した Claude Code プロセス（親をたどって見つける）の
  * セッションのものを選んで表示する。ctx 80% 以上で取り込み中（赤）、対象が無ければ退席中（黄）。
+ * 注意: フォルダを信頼していない Claude Code はステータスラインを実行しないので、ダンプは書かれない。
  *
  * 環境変数
  *   DISCORD_BOT_STATUSLINE_DIR  ダンプの場所（既定 ~/.claude/tmp/statusline）
@@ -80,11 +81,17 @@ function dumpedAt(d: Dump): number {
   return Number.isNaN(t) ? 0 : t
 }
 
-/** この MCP サーバーの親 Claude Code セッションのダンプを選ぶ。見つからなければ生きているセッションの最新 */
+/**
+ * この MCP サーバーの親 Claude Code セッションのダンプを選ぶ。
+ * PID が分かっているときはその PID のダンプだけを見る（無ければ null）。ダンプの置き場は全インスタンス共用なので、
+ * 別インスタンスのダンプに落ちると /restart の cwd や /model・/effort の監視を取り違える。
+ * PID を特定できなかったときだけ、生きているセッションの最新を使う
+ */
 export function pickSession(claudePid: number | null): Dump | null {
   const dumps = readDumps()
-  const mine = claudePid ? dumps.filter(d => d._claude_pid === claudePid) : []
-  const pool = mine.length > 0 ? mine : dumps.filter(d => d._claude_pid && pidAlive(d._claude_pid))
+  const pool = claudePid
+    ? dumps.filter(d => d._claude_pid === claudePid)
+    : dumps.filter(d => d._claude_pid && pidAlive(d._claude_pid))
   if (pool.length === 0) return null
   pool.sort((a, b) => dumpedAt(b) - dumpedAt(a))
   return pool[0]!

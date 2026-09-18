@@ -186,14 +186,13 @@ export async function switchSetting(kind: SettingKind, value: string, chatId: st
   return { ok: true, message: head + tail }
 }
 
-/** claude の cwd。ダンプに無ければ lsof で取る（ダンプが一度も書かれていない起動直後のため） */
+/** claude の cwd。プロセスの実際の cwd（lsof）を優先し、取れなければダンプの値を使う */
 function findClaudeCwd(pid: number, dump: Dump | null): string | null {
-  if (dump?.cwd) return dump.cwd
   const out = run(['lsof', '-a', '-p', String(pid), '-d', 'cwd', '-Fn']).out
   for (const line of out.split('\n')) {
     if (line.startsWith('n/')) return line.slice(1)
   }
-  return null
+  return dump?.cwd ?? null
 }
 
 /** 補助スクリプトを親から切り離して起動する。detached は POSIX では setsid 相当 */
