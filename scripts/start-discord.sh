@@ -7,7 +7,10 @@
 #     start-discord.sh                       新規セッションで起動
 #     start-discord.sh --resume <session-id> 会話を引き継いで起動（追加引数はそのまま claude に渡す）
 #   環境変数: DISCORD_TMUX_SESSION（既定 discord）
-#   すでに動いているものは起動しない（--channels 付き claude が二重に立つと Discord へ二重返信するため）
+#             DISCORD_STATE_DIR / DISCORD_BOT_STATE_DIR / DISCORD_GUILD_ID は claude にそのまま引き継がれる
+#             （別 Bot を並行して動かすときはこれらと DISCORD_TMUX_SESSION を組で変える。README「複数インスタンスで動かす」）
+#   対象の tmux セッション内で --channels 付き claude がすでに動いていれば起動しない（二重に立つと Discord へ二重返信するため）。
+#   別の tmux セッションで動いている claude は別インスタンスとみなして無視する
 set -u
 SESSION="${DISCORD_TMUX_SESSION:-discord}"
 DIR="$PWD"
@@ -24,11 +27,23 @@ else
   CLAUDE_CMD="DISCORD_SLASH_COMMANDS=off claude --channels plugin:discord@claude-plugins-official $*"
 fi
 
+# 対象セッションのペイン直下のプロセス（ペイン自身と子）に --channels 付き claude がいるか
+session_has_channels_claude() {
+  local pane_pid pids
+  for pane_pid in $(tmux list-panes -s -t "${SESSION}" -F '#{pane_pid}'); do
+    pids="$( (echo "${pane_pid}"; pgrep -P "${pane_pid}" 2>/dev/null) | paste -sd, -)"
+    if ps -o command= -p "${pids}" 2>/dev/null | grep -Eq 'claude.*(--channels|--dangerously-load-development-channels).*plugin:discord'; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 if ! tmux has-session -t "${SESSION}" 2>/dev/null; then
   tmux new-session -d -s "${SESSION}" -n claude -c "${DIR}" "${CLAUDE_CMD}"
   echo "tmux セッション ${SESSION} を作成し、claude を起動しました（cwd: ${DIR}）"
-elif pgrep -f 'claude.*(--channels|--dangerously-load-development-channels).*plugin:discord' >/dev/null; then
-  echo "claude（--channels）は起動済みです"
+elif session_has_channels_claude; then
+  echo "claude（--channels）は tmux セッション ${SESSION} で起動済みです"
 elif tmux list-panes -s -t "${SESSION}" -F '#{pane_pid}' | xargs -I{} pgrep -P {} -x claude 2>/dev/null | grep -q . \
   || tmux list-panes -s -t "${SESSION}" -F '#{pane_current_command}' | grep -Eq '^(claude|[0-9]+\.[0-9]+\.[0-9]+)$'; then
   echo "注意: tmux セッション ${SESSION} 内で claude は動いていますが --channels が付いていません。二重起動を避けるため何もしません"

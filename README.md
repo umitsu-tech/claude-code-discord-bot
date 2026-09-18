@@ -65,6 +65,21 @@ Claude Code の channel 機能（`claude --channels ...`）で Discord のメッ
 
 6. 音声入力を使う場合（任意）。Node.js 22.12 以上と whisper.cpp が必要です。`scripts/setup-voice.sh` が導入とモデルのダウンロードを一度に行います。ボイスチャンネル側の準備は [docs/usage.md](docs/usage.md) の /voice の節を見てください
 
+## 複数インスタンスで動かす
+
+別の Bot トークンと別のサーバーで、もう 1 本の Discord セッションを同じマシンで並行して動かせます。プラグイン本体は共用で、置き場を環境変数で分けるだけです。起動側のプロジェクトに、次の環境変数を設定してから `start-discord.sh` を呼ぶラッパーを置いてください。
+
+| 環境変数 | 既定値 | 分けるもの |
+| --- | --- | --- |
+| `DISCORD_STATE_DIR` | `~/.claude/channels/discord` | Bot トークン（`.env`）と許可リスト（`access.json`） |
+| `DISCORD_BOT_STATE_DIR` | `~/.claude/discord-bot` | `/clear` `/restart` のマーカー、voice のソケット・ログ・`voice.json` |
+| `DISCORD_TMUX_SESSION` | `discord` | tmux セッション名 |
+| `DISCORD_GUILD_ID` | （自動検出） | server-admin MCP が操作するサーバー。`.env` に書いても読まれます |
+
+2 本目の `DISCORD_STATE_DIR` には `.env`（`DISCORD_BOT_TOKEN=` と `DISCORD_GUILD_ID=`）を自分で作ってください。`/discord-bot:configure` と `/discord-bot:access` はこの環境変数が設定されたセッションではそのディレクトリを読み書きします。音声入力を両方で使う場合は、2 本目の `voice.json` で `whisper.port` を別の番号にしてください（モデルの置き場は共用できます）。
+
+1 つの Bot を複数のサーバーに招待する構成は勧めません。server-admin MCP は `DISCORD_GUILD_ID` が無いと参加サーバーを自動検出しますが、複数に参加していると起動を止めるためです。サーバーごとに Bot を分けてください。
+
 ## ドキュメント
 
 | ファイル | 区分 | 内容 |

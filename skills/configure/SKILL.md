@@ -11,8 +11,15 @@ allowed-tools:
 
 # /discord-bot:configure — Discord Channel Setup
 
-Writes the bot token to `~/.claude/channels/discord/.env` and orients the
+Writes the bot token to the state directory's `.env` and orients the
 user on access policy. The server reads both files at boot.
+
+The state directory is `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/` unless the environment
+variable `DISCORD_STATE_DIR` is set (check with `echo "${DISCORD_STATE_DIR:-}"`
+before touching any file). Every path below is written as
+`${DISCORD_STATE_DIR:-~/.claude/channels/discord}` to mean "that directory".
+Running several bots on one machine relies on this variable to keep their
+tokens and allowlists apart.
 
 Arguments passed: `$ARGUMENTS`
 
@@ -24,10 +31,10 @@ Arguments passed: `$ARGUMENTS`
 
 Read both state files and give the user a complete picture:
 
-1. **Token** — check `~/.claude/channels/discord/.env` for
+1. **Token** — check `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/.env` for
    `DISCORD_BOT_TOKEN`. Show set/not-set; if set, show first 6 chars masked.
 
-2. **Access** — read `~/.claude/channels/discord/access.json` (missing file
+2. **Access** — read `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/access.json` (missing file
    = defaults: `dmPolicy: "pairing"`, empty allowlist). Show:
    - DM policy and what it means in one line
    - Allowed senders: count, and list display names or snowflakes
@@ -77,10 +84,10 @@ as the correct long-term choice. Don't skip the lockdown offer.
 1. Treat `$ARGUMENTS` as the token (trim whitespace). Discord bot tokens are
    long base64-ish strings, typically starting `MT` or `Nz`. Generated from
    Developer Portal → Bot → Reset Token; only shown once.
-2. `mkdir -p ~/.claude/channels/discord`
+2. `mkdir -p ${DISCORD_STATE_DIR:-~/.claude/channels/discord}`
 3. Read existing `.env` if present; update/add the `DISCORD_BOT_TOKEN=` line,
    preserve other keys. Write back, no quotes around the value.
-4. `chmod 600 ~/.claude/channels/discord/.env` — the token is a credential.
+4. `chmod 600 ${DISCORD_STATE_DIR:-~/.claude/channels/discord}/.env` — the token is a credential.
 5. Confirm, then show the no-args status so the user sees where they stand.
 
 ### `clear` — remove the token
