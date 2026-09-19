@@ -2,6 +2,10 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
+## v0.9.1（2026-09-19）
+
+- #93 複数インスタンスで `/restart` が起動し直しに失敗する問題を修正。`pickSession` が別インスタンスのダンプに落ちないようにし（PID が分かるときはその PID のダンプだけ）、cwd は `lsof` を優先し、`start-discord.sh` が `DISCORD_TMUX_SESSION` も claude に渡す。README に起動側フォルダの信頼が必要なことを追記
+
 ## v0.9.0（2026-09-19）
 
 - #91 ギルド単位の既定受信設定 `guilds` を追加。個別登録（`groups`）の無いチャンネルでもギルドの既定（メンション必須など）に従って受信・返信・スラッシュコマンドを受け付ける。`/discord-bot:access guild add / rm` を追加

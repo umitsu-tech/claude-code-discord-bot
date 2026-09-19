@@ -73,10 +73,12 @@ Claude Code の channel 機能（`claude --channels ...`）で Discord のメッ
 | --- | --- | --- |
 | `DISCORD_STATE_DIR` | `~/.claude/channels/discord` | Bot トークン（`.env`）と許可リスト（`access.json`） |
 | `DISCORD_BOT_STATE_DIR` | `~/.claude/discord-bot` | `/clear` `/restart` のマーカー、voice のソケット・ログ・`voice.json` |
-| `DISCORD_TMUX_SESSION` | `discord` | tmux セッション名 |
+| `DISCORD_TMUX_SESSION` | `discord` | tmux セッション名。claude にも渡され、`/restart` が同じセッションへ起動し直すのに使います |
 | `DISCORD_GUILD_ID` | （自動検出） | server-admin MCP が操作するサーバー。`.env` に書いても読まれます |
 
 2 本目の `DISCORD_STATE_DIR` には `.env`（`DISCORD_BOT_TOKEN=` と `DISCORD_GUILD_ID=`）を自分で作ってください。`/discord-bot:configure` と `/discord-bot:access` はこの環境変数が設定されたセッションではそのディレクトリを読み書きします。音声入力を両方で使う場合は、2 本目の `voice.json` で `whisper.port` を別の番号にしてください（モデルの置き場は共用できます）。
+
+2 本目の起動側フォルダは、一度そのフォルダで `claude` を対話で起動し、フォルダを信頼するか聞くダイアログに答えておいてください。信頼していないフォルダでは Claude Code がフックとステータスラインの実行をスキップするため、`/clear` の完了通知が出ず、Bot のステータス表示も更新されません（`claude --debug` のログに `workspace trust not accepted` と出ます）。ダイアログが出ない場合は、公式ドキュメントにあるとおり `~/.claude.json` の `projects["<フォルダのパス>"].hasTrustDialogAccepted` を `true` にしてください。
 
 1 つの Bot を複数のサーバーに招待する構成は勧めません。server-admin MCP は `DISCORD_GUILD_ID` が無いと参加サーバーを自動検出しますが、複数に参加していると起動を止めるためです。サーバーごとに Bot を分けてください。
 

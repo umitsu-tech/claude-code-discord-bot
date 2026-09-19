@@ -7,8 +7,9 @@
 #     start-discord.sh                       新規セッションで起動
 #     start-discord.sh --resume <session-id> 会話を引き継いで起動（追加引数はそのまま claude に渡す）
 #   環境変数: DISCORD_TMUX_SESSION（既定 discord）
-#             DISCORD_STATE_DIR / DISCORD_BOT_STATE_DIR / DISCORD_GUILD_ID は claude にそのまま引き継がれる
-#             （別 Bot を並行して動かすときはこれらと DISCORD_TMUX_SESSION を組で変える。README「複数インスタンスで動かす」）
+#             DISCORD_STATE_DIR / DISCORD_BOT_STATE_DIR / DISCORD_GUILD_ID / DISCORD_TMUX_SESSION は claude にそのまま引き継がれる
+#             （別 Bot を並行して動かすときはこれらを組で変える。README「複数インスタンスで動かす」。
+#              DISCORD_TMUX_SESSION も渡すのは、/restart の補助スクリプトが同じ tmux セッションへ起動し直すため）
 #   対象の tmux セッション内で --channels 付き claude がすでに動いていれば起動しない（二重に立つと Discord へ二重返信するため）。
 #   別の tmux セッションで動いている claude は別インスタンスとみなして無視する
 set -u
@@ -23,7 +24,7 @@ MODE="${DISCORD_BOT_CHANNEL_MODE:-fork}"
 # tmux の new-session / new-window で起動するコマンドは、呼び出し元のシェルではなく tmux サーバーの環境を引き継ぐ。
 # 複数インスタンス用に export した DISCORD_* が claude に届くよう、コマンド文字列の頭に NAME=value の形で付けて渡す
 ENV_PREFIX=""
-for name in DISCORD_STATE_DIR DISCORD_BOT_STATE_DIR DISCORD_GUILD_ID DISCORD_BOT_STATUSLINE_DIR; do
+for name in DISCORD_STATE_DIR DISCORD_BOT_STATE_DIR DISCORD_GUILD_ID DISCORD_BOT_STATUSLINE_DIR DISCORD_TMUX_SESSION; do
   if [ -n "${!name:-}" ]; then
     ENV_PREFIX="${ENV_PREFIX}${name}=$(printf '%q' "${!name}") "
   fi

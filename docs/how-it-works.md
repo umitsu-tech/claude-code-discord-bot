@@ -12,7 +12,7 @@
 
 ![Bot ステータスのデータの流れ](diagrams/presence.png)
 
-`channel/presence.ts` が、channel サーバーを起動した Claude Code 本体の PID を親プロセスをたどって特定し、その PID を `_claude_pid` に持つステータスラインのダンプを 20 秒ごとに読んでアクティビティを更新します（見つからなければ、生きているセッションの最新のダンプを使います）。ctx 80% 以上で取り込み中（赤）、対象が無ければ退席中（黄）です。 Bot が送れるアクティビティのフィールドは name / type / state / url だけです。`DISCORD_PRESENCE_MODE` で playing（既定）/ watching / listening / competing / custom を選べます（custom は吹き出し表示で狭い）。
+`channel/presence.ts` が、channel サーバーを起動した Claude Code 本体の PID を親プロセスをたどって特定し、その PID を `_claude_pid` に持つステータスラインのダンプを 20 秒ごとに読んでアクティビティを更新します（その PID のダンプが無ければ退席中のままです。PID を特定できなかったときだけ、生きているセッションの最新のダンプを使います）。ctx 80% 以上で取り込み中（赤）、対象が無ければ退席中（黄）です。 Bot が送れるアクティビティのフィールドは name / type / state / url だけです。`DISCORD_PRESENCE_MODE` で playing（既定）/ watching / listening / competing / custom を選べます（custom は吹き出し表示で狭い）。
 
 ## スラッシュコマンド
 
@@ -72,7 +72,7 @@ channel サーバーは起動時に、Bot が参加している各サーバー�
 
 Claude Code のバージョンを上げるには、常駐セッションを新しいバイナリで立ち上げ直す必要があります。ただし claude が終了するとその子プロセスである channel サーバーも一緒に死ぬので、終了待ちから起動し直しまでは外に出した補助スクリプトが担当します。図のレーンは、再起動前のセッション（1〜5）、claude の外で動く補助スクリプト（6〜8）、再起動後の新しいセッション（9〜10）です。
 
-- channel サーバーはペインを特定し、ステータスラインのダンプから `session_id` と `cwd` を取ります（図の 2）（ダンプが無ければ `lsof -a -p <pid> -d cwd -Fn` で cwd を取ります）
+- channel サーバーはペインを特定し、`lsof -a -p <pid> -d cwd -Fn` で cwd を、ステータスラインのダンプから `session_id` を取ります（図の 2）
 - 補助スクリプト `scripts/restart-helper.sh` を、`Bun.spawn` の `detached`（POSIX では `setsid` 相当）と `unref()` で親から切り離して起動します（図の 3）。引数は環境変数で渡し、標準出力・標準エラーは `~/.claude/discord-bot/restart.log` へ追記します
 - 「再起動するね」を返してから 1 秒待って、ペインへ `/exit` を送ります（図の 4）。先に `/exit` を送ると、返事が Discord に届く前に claude ごと channel サーバーが落ちてしまうためです（claude と channel サーバーの終了が図の 5）
 - 補助スクリプトは 1 秒おきに `kill -0` で claude の終了を待ちます（図の 6）。90 秒たっても終わらなければ `C-c` と `/exit` を送り直し、 180 秒で諦めて「claude が終了しないので再起動を中止したよ」を Discord REST で投稿して終わります
