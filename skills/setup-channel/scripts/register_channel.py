@@ -32,11 +32,14 @@ Bot のトークンと DISCORD_GUILD_ID は、環境変数か ${DISCORD_STATE_DI
 guilds が空か --ignore-guilds のときは調べない（通信しない）。
 
 access.json の置き場は ${DISCORD_STATE_DIR:-~/.claude/channels/discord}。
-同じディレクトリの一時ファイルに書いてから rename で置き換える（channel サーバーと同じやり方）。
+ギルド ID を調べる通信は、書き換えのもとにする access.json を読む前に済ませる。書き込みは同じディレクトリの
+一時ファイルに書いてから rename で置き換える（channel サーバーと同じやり方）。置き換える直前に access.json を
+読み直し、読んだときから変わっていたら（channel サーバーやほかの操作が書いた）、何も書かずに NG で終わる。
 
 使い方: register_channel.py <チャンネルID> [--guild-id <ギルドID>] [--ignore-guilds] [--dry-run]
 出力は OK: / SKIP: / NG: のどれかで始まる 1 行（--dry-run では頭に DRY-RUN: が付き、書き込まない）。
-終了コードは NG が 1、引数の誤りが 2、それ以外は 0。NG でもエントリを取り除いたときは書き込む。
+終了コードは NG が 1、引数の誤りが 2、それ以外は 0。NG でもエントリを取り除いたときは書き込む
+（読んだあとに access.json が変わっていたときだけは書き込まない）。
 """
 
 import argparse
@@ -53,24 +56,39 @@ API_BASE = "https://discord.com/api/v10"
 PLACEHOLDERS = {"", "your_bot_token_here", "your_guild_id_here"}
 
 
-def load_access() -> dict:
-    """access.json を読む。無ければ空の dict。壊れていれば ValueError か TypeError"""
+class ChangedError(Exception):
+    """読んだあとに access.json が変わっていた"""
+
+
+def read_raw() -> bytes | None:
+    """access.json のバイト列。無ければ None"""
     try:
-        with open(ACCESS_JSON, encoding="utf-8") as f:
-            data = json.load(f)
+        with open(ACCESS_JSON, "rb") as f:
+            return f.read()
     except FileNotFoundError:
-        return {}
+        return None
+
+
+def load_access() -> tuple[dict, bytes | None]:
+    """access.json を読み、(中身, 読んだときのバイト列) を返す。無ければ ({}, None)。壊れていれば ValueError か TypeError"""
+    raw = read_raw()
+    if raw is None:
+        return ({}, None)
+    data = json.loads(raw.decode("utf-8"))
     if not isinstance(data, dict):
         raise TypeError("トップレベルがオブジェクトではない")
-    return data
+    return (data, raw)
 
 
-def save_access(data: dict) -> None:
+def save_access(data: dict, read_as: bytes | None) -> None:
+    """read_as は読んだときのバイト列。置き換える直前に読み直し、変わっていたら書かずに ChangedError"""
     fd, tmp = tempfile.mkstemp(prefix=".access.json.", suffix=".tmp", dir=STATE_DIR)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
         os.chmod(tmp, 0o600)
+        if read_raw() != read_as:
+            raise ChangedError
         os.replace(tmp, ACCESS_JSON)
     except BaseException:
         if os.path.exists(tmp):
@@ -212,8 +230,15 @@ def plan_channel(groups: dict, channel_id: str, entry: dict | None, top: list, p
     return ("OK", f"{prefix}{channel_id} は登録済み。" + "。".join(changes), True)
 
 
-def plan(data: dict, channel_id: str, ignore_guilds: bool, given_guild_id: str | None) -> tuple[str, str, bool]:
-    """(種別, メッセージ, 書き込みが要るか) を返す。書き込みが要るときは data を書き換えてある"""
+def needs_guild(data: dict, ignore_guilds: bool) -> bool:
+    """チャンネルのギルド ID を調べる必要があるか（guilds に既定があり、--ignore-guilds でない）"""
+    guilds = data.get("guilds")
+    return isinstance(guilds, dict) and bool(guilds) and not ignore_guilds
+
+
+def plan(data: dict, channel_id: str, ignore_guilds: bool, guild: tuple[str | None, str]) -> tuple[str, str, bool]:
+    """(種別, メッセージ, 書き込みが要るか) を返す。書き込みが要るときは data を書き換えてある。
+    guild は resolve_guild_id() の結果（needs_guild() が真のときだけ使う）"""
     top_raw = data.get("allowFrom")
     top = top_raw if isinstance(top_raw, list) else []
 
@@ -224,11 +249,11 @@ def plan(data: dict, channel_id: str, ignore_guilds: bool, given_guild_id: str |
     if entry is not None and not isinstance(entry, dict):
         return ("NG", f"groups の {channel_id} がオブジェクトではない", False)
 
-    guilds = data.get("guilds")
-    if not isinstance(guilds, dict) or not guilds or ignore_guilds:
+    if not needs_guild(data, ignore_guilds):
         return plan_channel(groups, channel_id, entry, top, "")
 
-    guild_id, source = resolve_guild_id(channel_id, given_guild_id)
+    guilds = data["guilds"]
+    guild_id, source = guild
     if guild_id is None:
         return plan_unknown_guild(groups, channel_id, entry, source)
     if guild_id in guilds:
@@ -253,15 +278,26 @@ def main() -> int:
             print(f"NG: {label} は数字で渡す（受け取った値: {value}）", file=sys.stderr)
             return 2
 
+    changed = "access.json が、読んでから書き込むまでの間に変わった（channel サーバーやほかの操作が書き込んだ）ので、何も書き込まなかった。もう一度実行する"
     try:
-        data = load_access()
+        # 1 回目はギルド ID を調べる必要があるかを見るだけ。通信は書き換えのもとにする読み込みより前に済ませる
+        first, _ = load_access()
+        guild = resolve_guild_id(args.channel_id, args.guild_id) if needs_guild(first, args.ignore_guilds) else None
+        data, read_as = load_access()
     except (ValueError, TypeError, OSError) as e:
         print(f"NG: {ACCESS_JSON} を読めない（{e}）。ファイルを確かめる", file=sys.stderr)
         return 1
+    if guild is None and needs_guild(data, args.ignore_guilds):
+        print(f"NG: {changed}", file=sys.stderr)  # 2 回の読み込みの間に guilds が増えた
+        return 1
 
-    kind, message, needs_write = plan(data, args.channel_id, args.ignore_guilds, args.guild_id)
+    kind, message, needs_write = plan(data, args.channel_id, args.ignore_guilds, guild or (None, ""))
     if needs_write and not args.dry_run:
-        save_access(data)
+        try:
+            save_access(data, read_as)
+        except ChangedError:
+            print(f"NG: {changed}", file=sys.stderr)
+            return 1
     prefix = "DRY-RUN: 書き込みはしていない。実行すると次の結果になる → " if args.dry_run else ""
     line = f"{prefix}{kind}: {message}"
     if kind == "NG":

@@ -4,7 +4,7 @@
 
 ## v0.9.2（2026-09-25）
 
-- #96 同梱スキルを Claude Opus 5.5 向けに書き直し。clear・ctx・setup-channel の本文から強調と重複を外し、`description` は何をしていつ使うかだけにして呼び出しの言い回しを `when_to_use` へ移した（ctx は `effort: low`）。access・configure は説明文と強調だけを手直し。`clear_session.sh` を POSIX sh にし（値のない `--chat-id` で止まらなくなる不具合も修正）、setup-channel の受信設定を `register_channel.py` に出した。`create_channel` が自動で書く `groups` のエントリは、そのチャンネルのギルドに `guilds` の既定があるとき（ギルド ID は Discord API などで確認）に取り除く。`allowFrom` が空のエントリは、狭めるか取り除いて残さない
+- #96 同梱スキルを Claude Opus 5.5 向けに書き直し。clear・ctx・setup-channel の本文から強調と重複を外し、`description` は何をしていつ使うかだけにして呼び出しの言い回しを `when_to_use` へ移した（ctx は `effort: low`）。access・configure は説明文と強調だけを手直し。`clear_session.sh` を POSIX sh にし（値のない `--chat-id` で止まらなくなる不具合も修正）、setup-channel の受信設定を `register_channel.py` に出した。`create_channel` が自動で書く `groups` のエントリは、そのチャンネルのギルドに `guilds` の既定があるとき（ギルド ID は Discord API などで確認）に取り除く。`allowFrom` が空のエントリは、狭めるか取り除いて残さない。書き込む直前に access.json を読み直し、途中で変わっていたら書かずに止める
 
 ## v0.9.1（2026-09-19）
 
