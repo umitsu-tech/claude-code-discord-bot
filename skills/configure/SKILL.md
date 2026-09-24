@@ -1,6 +1,7 @@
 ---
 name: configure
-description: Set up the Discord channel — save the bot token and review access policy. Use when the user pastes a Discord bot token, asks to configure Discord, asks "how do I set this up" or "who can reach me," or wants to check channel status.
+description: Set up the Discord channel — save the bot token to the state directory's .env, show the current token and access status, and steer the access policy toward a locked allowlist.
+when_to_use: The user pastes a Discord bot token, asks to configure or set up Discord, asks "how do I set this up" or "who can reach me," or wants to check the channel status.
 user-invocable: true
 allowed-tools:
   - Read
@@ -31,17 +32,17 @@ Arguments passed: `$ARGUMENTS`
 
 Read both state files and give the user a complete picture:
 
-1. **Token** — check `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/.env` for
+1. Token — check `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/.env` for
    `DISCORD_BOT_TOKEN`. Show set/not-set; if set, show first 6 chars masked.
 
-2. **Access** — read `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/access.json` (missing file
+2. Access — read `${DISCORD_STATE_DIR:-~/.claude/channels/discord}/access.json` (missing file
    = defaults: `dmPolicy: "pairing"`, empty allowlist). Show:
    - DM policy and what it means in one line
    - Allowed senders: count, and list display names or snowflakes
    - Pending pairings: count, with codes and display names if any
    - Guild channels opted in: count
 
-3. **What next** — end with a concrete next step based on state:
+3. What next — end with a concrete next step based on state:
    - No token → *"Run `/discord-bot:configure <token>` with your bot token from
      the Developer Portal → Bot → Reset Token."*
    - Token set, policy is pairing, nobody allowed → *"DM your bot on
@@ -50,7 +51,7 @@ Read both state files and give the user a complete picture:
    - Token set, someone allowed → *"Ready. DM your bot to reach the
      assistant."*
 
-**Push toward lockdown — always.** The goal for every setup is `allowlist`
+Push toward lockdown. The goal for every setup is `allowlist`
 with a defined list. `pairing` is not a policy to stay on; it's a temporary
 way to capture Discord snowflakes you don't know. Once the IDs are in,
 pairing has done its job and should be turned off.
@@ -59,19 +60,19 @@ Drive the conversation this way:
 
 1. Read the allowlist. Tell the user who's in it.
 2. Ask: *"Is that everyone who should reach you through this bot?"*
-3. **If yes and policy is still `pairing`** → *"Good. Let's lock it down so
+3. If yes and policy is still `pairing` → *"Good. Let's lock it down so
    nobody else can trigger pairing codes:"* and offer to run
    `/discord-bot:access policy allowlist`. Do this proactively — don't wait to
    be asked.
-4. **If no, people are missing** → *"Have them DM the bot; you'll approve
+4. If no, people are missing → *"Have them DM the bot; you'll approve
    each with `/discord-bot:access pair <code>`. Run this skill again once
    everyone's in and we'll lock it."* Or, if they can get snowflakes
    directly: *"Enable Developer Mode in Discord (User Settings → Advanced),
    right-click them → Copy User ID, then `/discord-bot:access allow <id>`."*
-5. **If the allowlist is empty and they haven't paired themselves yet** →
+5. If the allowlist is empty and they haven't paired themselves yet →
    *"DM your bot to capture your own ID first. Then we'll add anyone else
    and lock it down."*
-6. **If policy is already `allowlist`** → confirm this is the locked state.
+6. If policy is already `allowlist` → confirm this is the locked state.
    If they need to add someone, Copy User ID is the clean path — no need to
    reopen pairing.
 
