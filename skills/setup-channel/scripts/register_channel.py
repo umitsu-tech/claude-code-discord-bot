@@ -16,6 +16,7 @@ setup-channel スキルの「受信設定」を機械的に行う。触るのは
 
 それ以外（guilds がある、トップレベル allowFrom が空、エントリが上の形でない、など）では何も書かずに NG で止まる。
 guilds の既定との関係や allowFrom の決め方は構成によって変わるので、ユーザーと access.json を見て手で決める。
+そのとき allowFrom が空のエントリ（channel サーバーが送り主を確かめず、誰でも届く状態）があれば、NG の行でそう知らせる。
 
 access.json の置き場は ${DISCORD_STATE_DIR:-~/.claude/channels/discord}。書き込みは同じディレクトリの一時ファイルに
 書いてから rename で置き換える（channel サーバーと同じやり方）。置き換える直前に access.json を読み直し、
@@ -70,41 +71,53 @@ def dumps(value: object) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def is_open(entry: object) -> bool:
+    """channel サーバーは allowFrom が無いか空だと送り主を確かめない（そのチャンネルに書ける人なら誰でも届く）"""
+    return isinstance(entry, dict) and not entry.get("allowFrom")
+
+
+def has_shape(entry: object, require_mention: bool, allow_from: list[list]) -> bool:
+    """キーが requireMention と allowFrom だけで、requireMention が require_mention、allowFrom が allow_from のどれかか"""
+    return (
+        isinstance(entry, dict)
+        and set(entry) == {"requireMention", "allowFrom"}
+        and entry["requireMention"] is require_mention
+        and isinstance(entry["allowFrom"], list)
+        and entry["allowFrom"] in allow_from
+    )
+
+
+def refuse(reason: str, groups: dict, channel_id: str) -> tuple[str, str, bool]:
+    """何も書かずに止めるときのメッセージ。allowFrom が空のエントリがあれば、誰でも届く状態だと添える"""
+    warn = ""
+    if is_open(groups.get(channel_id)):
+        warn = f"groups の {channel_id} は allowFrom が空なので、直すまでこのチャンネルに書ける人なら誰でも届く。"
+    return ("NG", f"{reason}。何も書き込んでいない。{warn}ユーザーと access.json を見て、このチャンネルの受け方を手で決める", False)
+
+
 def plan(data: dict, channel_id: str) -> tuple[str, str, bool]:
     """(種別, メッセージ, 書き込みが要るか) を返す。書き込みが要るときは data を書き換えてある"""
-    manual = "何も書き込んでいない。ユーザーと access.json を見て、このチャンネルの受け方を手で決める"
+    groups = data.setdefault("groups", {})
+    if not isinstance(groups, dict):
+        return refuse("groups がオブジェクトではない", {}, channel_id)
     guilds = data.get("guilds")
     if guilds:
         names = ", ".join(guilds) if isinstance(guilds, dict) else dumps(guilds)
-        return ("NG", f"guilds にギルド単位の既定（{names}）がある構成は自動で直さない。{manual}", False)
+        return refuse(f"guilds にギルド単位の既定（{names}）がある構成は自動で直さない", groups, channel_id)
     top = data.get("allowFrom")
     if not isinstance(top, list) or not top:
-        return ("NG", f"トップレベルの allowFrom が空（まだ誰もペアリングしていない）。{manual}", False)
-    groups = data.setdefault("groups", {})
-    if not isinstance(groups, dict):
-        return ("NG", f"groups がオブジェクトではない。{manual}", False)
+        return refuse("トップレベルの allowFrom が空（まだ誰もペアリングしていない）", groups, channel_id)
 
-    entry = groups.get(channel_id)
-    if entry is None:
+    if channel_id not in groups:
         groups[channel_id] = {"requireMention": False, "allowFrom": list(top)}
         return ("OK", f"groups に {channel_id} を追加した（requireMention: false、allowFrom: {dumps(top)}）", True)
-    if entry == {"requireMention": False, "allowFrom": top}:
+    entry = groups[channel_id]
+    if has_shape(entry, False, [top]):
         return ("OK", f"{channel_id} は登録済み（requireMention: false、allowFrom はトップレベルと同じ）。変更なし", False)
-    if (
-        isinstance(entry, dict)
-        and set(entry) == {"requireMention", "allowFrom"}
-        and entry["requireMention"] is True
-        and entry["allowFrom"] in (top, [])
-    ):
+    if has_shape(entry, True, [top, []]):
         groups[channel_id] = {"requireMention": False, "allowFrom": list(top)}
         return ("OK", f"{channel_id} の requireMention を false にした（allowFrom: {dumps(top)}）", True)
-
-    note = "。allowFrom が空で、送り主を確かめない状態" if isinstance(entry, dict) and not entry.get("allowFrom") else ""
-    return (
-        "NG",
-        f"groups の {channel_id}（{dumps(entry)}{note}）が create_channel の書く形ではないので変えない。{manual}",
-        False,
-    )
+    return refuse(f"groups の {channel_id}（{dumps(entry)}）が create_channel の書く形ではないので変えない", groups, channel_id)
 
 
 def main() -> int:
