@@ -19,9 +19,9 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 
 ## 現在の状況
 
-- 最終更新: 2026-09-16
-- いまの版と稼働状態: v0.8.0。管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。フォーク版 channel サーバーが送受信を担当し、公式プラグインは使っていない
-- 直近の完了: 構成図の後片付け #78/#80（PR #79・#81） / voice の入室リトライと文字起こし自動投稿 #73/#74（PR #75・#76） / ボイスチャンネル対応 #61〜#67（v0.8.0）
-- 残り・次の一歩: 無し。/clear を Bot 側に寄せる案（#52）は見送り
+- 最終更新: 2026-09-25
+- いまの版と稼働状態: v0.9.2。管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。フォーク版 channel サーバーが送受信を担当し、公式プラグインは使っていない
+- 直近の完了: スキルの Opus 5.5 向け書き直しとスクリプト化 #96（v0.9.2） / 複数インスタンス対応とギルド単位の既定 #85〜#93（v0.8.1〜v0.9.1） / ボイスチャンネル対応 #61〜#67（v0.8.0）
+- 残り・次の一歩: #96 をマージしたら plugin update と `/reload-plugins` で反映し、Discord から `/ctx`、`/clear`、チャンネル作成（setup-channel）を 1 回ずつ通す。受信設定のエントリの設計の見直し（#98）は要検討。/clear を Bot 側に寄せる案（#52）は見送り
 - 履歴: docs/changelog.md
 - 関連リソース: リポジトリ https://github.com/umitsu-tech/claude-code-discord-bot（Public）、マーケットプレイス https://github.com/umitsu-tech/claude-plugins、discord-workspace の `memory/tasks.md`（台帳の入口）と `docs/discord-context-control.md`（設計メモ）

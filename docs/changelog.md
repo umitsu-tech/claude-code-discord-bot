@@ -2,6 +2,10 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
+## v0.9.2（2026-09-25）
+
+- #96 同梱スキルを Claude Opus 5.5 向けに書き直し。clear・ctx・setup-channel の本文から強調と重複を外し、`description` は何をしていつ使うかだけにして呼び出しの言い回しを `when_to_use` へ移した（ctx は `effort: low`）。access・configure は説明文と強調だけを手直し。`clear_session.sh` を POSIX sh にし（値のない `--chat-id` で止まらなくなる不具合も修正）、setup-channel の受信設定を `register_channel.py` に出した。自動で直すのは `guilds` が無くトップレベルの `allowFrom` がある構成だけで、`create_channel` が書くエントリの `requireMention` を false にする。それ以外の構成では何も書かずに止め、手で決める。書き込む直前に access.json を読み直し、途中で変わっていたら書かずに止める
+
 ## v0.9.1（2026-09-19）
 
 - #93 複数インスタンスで `/restart` が起動し直しに失敗する問題を修正。`pickSession` が別インスタンスのダンプに落ちないようにし（PID が分かるときはその PID のダンプだけ）、cwd は `lsof` を優先し、`start-discord.sh` が `DISCORD_TMUX_SESSION` も claude に渡す。README に起動側フォルダの信頼が必要なことを追記

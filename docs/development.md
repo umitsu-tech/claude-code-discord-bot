@@ -33,10 +33,10 @@ voice/                              ボイスチャンネル用の Node プロ�
   dev/fake-gateway.js               channel の代わりに Gateway 中継だけを行う開発用スクリプト
   dev/verify-vad.js                 録音済み WAV を UtteranceSegmenter に通し、区間の数と長さを機械的に確認する開発用スクリプト
 mcp/server-admin/                   サーバー管理 MCP（Python、uv）
-skills/access/ skills/configure/    アクセス管理とトークン設定（上流のスキルを名前空間だけ変えたもの）
-skills/ctx/                         /discord-bot:ctx
-skills/clear/                       /discord-bot:clear
-skills/setup-channel/               /discord-bot:setup-channel
+skills/access/ skills/configure/    アクセス管理とトークン設定（上流のスキルに、名前空間・置き場の環境変数・guilds・説明文の変更を加えたもの）
+skills/ctx/                         /discord-bot:ctx（scripts/context_usage.py が使用量を読む）
+skills/clear/                       /discord-bot:clear（scripts/clear_session.sh が tmux ペインへ /clear を送る。POSIX sh）
+skills/setup-channel/               /discord-bot:setup-channel（scripts/register_channel.py が access.json の groups に新チャンネルを登録する）
 hooks/hooks.json                    SessionStart(clear) の完了通知、PostToolUse(create_channel) の受信設定リマインド
 hooks/notify-clear-done.py
 hooks/remind-channel-access.py

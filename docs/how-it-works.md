@@ -151,7 +151,7 @@ Discord の `speaking` の `end` イベントは使わない。日本語の間�
 
 ## サーバー管理 MCP
 
-`mcp/server-admin/` は Python（FastMCP + httpx）の MCP サーバーで、Discord REST API v10 を直接呼びます。ツールは list_channels / create_channel / create_category / edit_channel / delete_channel / create_forum_thread / list_threads / close_thread / reopen_thread の 9 つです。 Claude から見たツール名は `mcp__plugin_discord-bot_server-admin__<tool>` になります。 `create_channel` の直後には `hooks/remind-channel-access.py` が「access.json に受信設定を入れる」ことを促す注意書きを注入します。 `requireMention` が `true` のままだとメンション無しの投稿が届かない、という公式プラグインの落とし穴を塞ぐためです。
+`mcp/server-admin/` は Python（FastMCP + httpx）の MCP サーバーで、Discord REST API v10 を直接呼びます。ツールは list_channels / create_channel / create_category / edit_channel / delete_channel / create_forum_thread / list_threads / close_thread / reopen_thread の 9 つです。 Claude から見たツール名は `mcp__plugin_discord-bot_server-admin__<tool>` になります。 `create_channel` の直後には `hooks/remind-channel-access.py` が「access.json に受信設定を入れる」ことを促す注意書きを注入します。 `requireMention` が `true` のままだとメンション無しの投稿が届かない、という公式プラグインの落とし穴を塞ぐためです。受信設定そのものは `/discord-bot:setup-channel` が `skills/setup-channel/scripts/register_channel.py` で入れます。書き換えるのは新しいチャンネルの `groups` のエントリだけです。自動で直すのは、`guilds`（ギルド単位の既定）が無く、トップレベルの `allowFrom` に 1 人以上いる構成だけで、`create_channel` が自動で書くエントリ（`requireMention: true` とトップレベル `allowFrom` の写し）の `requireMention` を false にします。`guilds` がある構成、トップレベルの `allowFrom` が空の構成、エントリが自動の形でない場合は、何も書かずに止まり、Claude がユーザーと access.json を見て手で決めます。channel サーバーは `groups` を `guilds` より優先し、`allowFrom` が空のエントリでは送り主を確かめないので、構成によって正しい直し方が変わるためです。書き込む直前に access.json を読み直し、途中で変わっていたら何も書かずに止めます。作成時の `allowFrom` の写しがあとの変更に追従しないことなど、受信設定のエントリの設計の見直しは #98 で扱います。
 
 ## 制約と注意
 
