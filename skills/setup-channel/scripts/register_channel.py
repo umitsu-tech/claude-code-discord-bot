@@ -16,7 +16,7 @@ setup-channel スキルの「受信設定」を機械的に行う。触るのは
 
 それ以外（guilds がある、トップレベル allowFrom が空、エントリが上の形でない、など）では何も書かずに NG で止まる。
 guilds の既定との関係や allowFrom の決め方は構成によって変わるので、ユーザーと access.json を見て手で決める。
-そのとき allowFrom が空のエントリ（channel サーバーが送り主を確かめず、誰でも届く状態）があれば、NG の行でそう知らせる。
+構成を理由に止めるとき、allowFrom が空か配列でないエントリ（channel サーバーが送り主を確かめず、誰でも届く状態）があれば、NG の行でそう知らせる。
 
 access.json の置き場は ${DISCORD_STATE_DIR:-~/.claude/channels/discord}。書き込みは同じディレクトリの一時ファイルに
 書いてから rename で置き換える（channel サーバーと同じやり方）。置き換える直前に access.json を読み直し、
@@ -72,8 +72,11 @@ def dumps(value: object) -> str:
 
 
 def is_open(entry: object) -> bool:
-    """channel サーバーは allowFrom が無いか空だと送り主を確かめない（そのチャンネルに書ける人なら誰でも届く）"""
-    return isinstance(entry, dict) and not entry.get("allowFrom")
+    """channel サーバーは allowFrom が配列でないか空だと送り主を確かめない（そのチャンネルに書ける人なら誰でも届く）"""
+    if not isinstance(entry, dict):
+        return False
+    allow_from = entry.get("allowFrom")
+    return not isinstance(allow_from, list) or not allow_from
 
 
 def has_shape(entry: object, require_mention: bool, allow_from: list[list]) -> bool:
