@@ -61,6 +61,8 @@ scripts/setup-voice.sh              voice/ の導入（whisper.cpp、モデル�
 docs/verify/                        繰り返し使う確認手順（voice.md、0.7.1.md）
 docs/archive/migration-plan.md      移植の手順書と公開前チェックリスト（完了した作業の記録）
 docs/changelog.md                   版ごとの変更履歴
+docs/preview/embed-preview.html     Embed の見え方の再現ページ（Discord の見た目を CSS でまねたもの。中の JSON を書き換えてブラウザで開く。PR の画像づくりや embed-command の出力の確認に使う）
+docs/img/                           PR やドキュメントに貼る画像（再現ページから撮ったものなど）
 docs/diagrams/                      図の元ファイル（.drawio）と書き出した PNG。編集は draw.io で、書き出しは drawio CLI（--scale 3）
 ```
 

@@ -41,6 +41,9 @@ reply ツールは `text` に加えて `embeds`（Discord API の Embed オブ�
 - `channel/embeds.ts` が Discord の上限を送る前に確かめます。上限は 1 メッセージ 10 個、`title` 256 文字、`description` 4096 文字、`fields` 25 個、`fields` の `name` 256 文字・`value` 1024 文字、`footer.text` 2048 文字、そのメッセージの全 Embed の合計 6000 文字です。超えたら `embeds[0].fields[2].value is 1200 characters (max 1024)` のように、どこが駄目かを書いたエラーをツールの結果として返します。Discord と同じく、前後の空白は数えません
 - 中身が空の Embed（`color` だけなど）や、`name`・`value` が空の field もエラーです
 - 本文が 2000 文字を超えて分割されるときは、Embed は最後のメッセージに付けます。本文の途中に Embed が挟まらないようにするためです
+- 見え方は `docs/preview/embed-preview.html` で手元で確かめられます。Discord の見た目を CSS でまねた再現なので、字形や余白は本物と少し違います
+
+![Embed の見え方（再現）](img/embed-preview.png)
 
 ## スラッシュコマンド
 
