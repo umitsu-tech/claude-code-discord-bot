@@ -12,6 +12,9 @@
  *   - session-control.ts: /model, /effort and /restart handled in-server (tmux send-keys to the claude pane)
  *   - voice-control.ts: relays Gateway voice events to/from the voice process over a Unix socket, and
  *     forwards its transcripts to Claude as notifications/claude/channel (meta.via = 'voice')
+ *   - embeds.ts: the reply tool accepts Discord embeds, checked against Discord's limits before sending
+ *   - embed-command.ts: slash commands whose action is 'embed-command' run a fixed local command and
+ *     answer with its JSON output as embeds, without a Claude turn
  */
 /**
  * Discord channel for Claude Code.
@@ -54,6 +57,8 @@ import { registerSlashCommands, toSkillInvocation, findCommand, type CommandDef 
 import { switchSetting, restartSession, notifyRestartDone } from './session-control'
 import { initVoiceControl, activeChannelId as voiceActiveChannelId, type TranscriptEvent } from './voice-control'
 import { handleVoiceCommand } from './voice-command'
+import { validateEmbeds } from './embeds'
+import { handleEmbedCommand } from './embed-command'
 
 const STATE_DIR = process.env.DISCORD_STATE_DIR ?? join(homedir(), '.claude', 'channels', 'discord')
 const ACCESS_FILE = join(STATE_DIR, 'access.json')
@@ -498,7 +503,7 @@ const mcp = new Server(
       '',
       'Messages from Discord arrive as <channel source="discord" chat_id="..." message_id="..." user="..." ts="...">. If the tag has attachment_count, the attachments attribute lists name/type/size — call download_attachment(chat_id, message_id) to fetch them. Reply with the reply tool — pass chat_id back. Use reply_to (set to a message_id) only when replying to an earlier message; the latest message doesn\'t need a quote-reply, omit reply_to for normal responses.',
       '',
-      'reply accepts file paths (files: ["/abs/path.png"]) for attachments. Use react to add emoji reactions, and edit_message for interim progress updates. Edits don\'t trigger push notifications — when a long task completes, send a new reply so the user\'s device pings.',
+      'reply accepts file paths (files: ["/abs/path.png"]) for attachments, and embeds (Discord embed objects) for structured information such as status lists or key/value summaries — they read more evenly than markdown headings. Use react to add emoji reactions, and edit_message for interim progress updates. Edits don\'t trigger push notifications — when a long task completes, send a new reply so the user\'s device pings.',
       '',
       "fetch_messages pulls real Discord history. Discord's search API isn't available to bots — if the user asks you to find an old message, fetch more history or ask them roughly when it was.",
       '',
@@ -565,12 +570,16 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'reply',
       description:
-        'Reply on Discord. Pass chat_id from the inbound message. Optionally pass reply_to (message_id) for threading, and files (absolute paths) to attach images or other files.',
+        'Reply on Discord. Pass chat_id from the inbound message, and text, embeds, or both. Optionally pass reply_to (message_id) for threading, and files (absolute paths) to attach images or other files. ' +
+        'Use embeds for structured information (status lists, key/value summaries): a colored sidebar, a title, a markdown description, and fields that can sit side by side (inline: true). ' +
+        'Example: embeds: [{"title": "Sessions", "color": "#5865F2", "fields": [{"name": "main", "value": "running · ctx 42%", "inline": true}], "footer": {"text": "updated just now"}}]. ' +
+        'Limits are checked before sending and an over-limit embed fails with an error naming the offending key: max 10 embeds per message; title 256, description 4096, 25 fields, field name 256, field value 1024, footer text 2048 characters; 6000 characters across all embeds in the message. ' +
+        'When long text is split into several messages, the embeds go on the last one.',
       inputSchema: {
         type: 'object',
         properties: {
           chat_id: { type: 'string' },
-          text: { type: 'string' },
+          text: { type: 'string', description: 'Message text (markdown). Optional when embeds or files are given.' },
           reply_to: {
             type: 'string',
             description: 'Message ID to thread under. Use message_id from the inbound <channel> block, or an id from fetch_messages.',
@@ -580,8 +589,47 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
             items: { type: 'string' },
             description: 'Absolute file paths to attach (images, logs, etc). Max 10 files, 25MB each.',
           },
+          embeds: {
+            type: 'array',
+            maxItems: 10,
+            description: 'Discord embed objects (max 10). Only the keys below are accepted.',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'Up to 256 characters.' },
+                description: { type: 'string', description: 'Markdown body, up to 4096 characters.' },
+                url: { type: 'string', description: 'http(s) URL. Makes the title a link.' },
+                color: {
+                  type: ['integer', 'string'],
+                  description: 'Sidebar color: "#RRGGBB" or the same value as an integer (e.g. 5793266 for #5865F2).',
+                },
+                fields: {
+                  type: 'array',
+                  maxItems: 25,
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string', description: 'Up to 256 characters, not empty.' },
+                      value: { type: 'string', description: 'Up to 1024 characters, not empty.' },
+                      inline: { type: 'boolean', description: 'Place side by side with neighbouring inline fields (up to 3 per row).' },
+                    },
+                    required: ['name', 'value'],
+                    additionalProperties: false,
+                  },
+                },
+                footer: {
+                  type: 'object',
+                  properties: { text: { type: 'string', description: 'Up to 2048 characters.' } },
+                  required: ['text'],
+                  additionalProperties: false,
+                },
+                timestamp: { type: 'string', description: 'ISO 8601 time shown next to the footer.' },
+              },
+              additionalProperties: false,
+            },
+          },
         },
-        required: ['chat_id', 'text'],
+        required: ['chat_id'],
       },
     },
     {
@@ -647,9 +695,14 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     switch (req.params.name) {
       case 'reply': {
         const chat_id = args.chat_id as string
-        const text = args.text as string
+        const text = (args.text as string | undefined) ?? ''
         const reply_to = args.reply_to as string | undefined
         const files = (args.files as string[] | undefined) ?? []
+        // 上限を超える Embed は Discord に送る前に止める（どのキーが駄目かをエラーに書く）
+        const embeds = args.embeds === undefined ? [] : validateEmbeds(args.embeds)
+        if (!text && embeds.length === 0 && files.length === 0) {
+          throw new Error('nothing to send — pass text, embeds, or files')
+        }
 
         const ch = await fetchAllowedChannel(chat_id, { allowActiveVoice: true })
         if (!('send' in ch)) throw new Error('channel is not sendable')
@@ -677,8 +730,11 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
               replyMode !== 'off' &&
               (replyMode === 'all' || i === 0)
             const sent = await ch.send({
-              content: chunks[i],
+              // embeds だけ・files だけのときは本文を付けない
+              ...(chunks[i] ? { content: chunks[i] } : {}),
               ...(i === 0 && files.length > 0 ? { files } : {}),
+              // 本文が分割されたときは最後のメッセージに付ける（本文の途中に挟まらないように）
+              ...(i === chunks.length - 1 && embeds.length > 0 ? { embeds } : {}),
               ...(shouldReplyTo
                 ? { reply: { messageReference: reply_to, failIfNotExists: false } }
                 : {}),
@@ -852,7 +908,7 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 // Slash command → Claude へのスキル呼び出し。送信者は allowFrom に居ること、
 // 送信先はチャンネル受信設定（groups）済みか DM であること（reply ツールの出口ゲートと揃える）。
 // 3 秒以内に ephemeral で受け付けを返し、結果は Claude が reply ツールで通常のメッセージとして投稿する。
-// action 付きのコマンド（/model、/effort、/restart）は Claude に渡さず、channel サーバー自身が処理する。
+// action 付きのコマンド（/model、/effort、/restart、/voice、embed-command）は Claude に渡さず、channel サーバー自身が処理する。
 async function handleSlashCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const access = loadAccess()
   if (!access.allowFrom.includes(interaction.user.id)) {
@@ -896,6 +952,13 @@ async function handleSlashCommand(interaction: ChatInputCommandInteraction): Pro
     await handleVoiceCommand(interaction, access.allowFrom).catch(e =>
       process.stderr.write(`discord channel: voice command failed: ${e}\n`),
     )
+    return
+  }
+  if (def?.action === 'embed-command') {
+    await handleEmbedCommand(interaction, def).catch(e =>
+      process.stderr.write(`discord channel: embed-command failed: ${e}\n`),
+    )
+    if (isDM) dmChannelUsers.set(interaction.channelId, interaction.user.id)
     return
   }
 
