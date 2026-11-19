@@ -1,0 +1,87 @@
+<!doctype html>
+<!--
+  presence-preview.html — Bot のステータス（presence）の見え方を手元で確かめるための再現ページ（#105）
+
+  Discord のダークテーマのメンバー一覧とプロフィールのアクティビティの見た目を CSS でまねたもので、
+  本物とは字形や余白、省略される位置が少し違う。下の <script id="presence"> の JSON を書き換えて開くと、その内容で描く。
+  line1・line2 は channel/presence.ts の buildPresence() が返す値（line1 がアクティビティの名前、line2 が state）。
+  外部のファイルやサービスは読まない。
+
+  PR 用の画像はヘッドレスの Chrome で撮る。
+    google-chrome --headless=new --hide-scrollbars --force-device-scale-factor=2 \
+      --window-size=760,490 --screenshot=docs/img/presence-preview.png docs/preview/presence-preview.html
+-->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Presence preview</title>
+<style>
+  :root { --bg: #313338; --panel: #2b2d31; --card: #232428; --text: #dbdee1; --header: #f2f3f5; --muted: #b5bac1; --blurple: #5865f2; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+    font: 14px/1.375 "Noto Sans", "Noto Sans CJK JP", "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .col { display: grid; gap: 6px; }
+  .label { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .members { width: 240px; background: var(--panel); border-radius: 8px; padding: 12px 8px; }
+  .group { color: #949ba4; font-size: 12px; font-weight: 600; padding: 0 8px 6px; }
+  .member { display: flex; gap: 12px; align-items: center; padding: 4px 8px; border-radius: 4px; }
+  .avatar { position: relative; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--blurple); color: #fff; display: grid; place-items: center; font-weight: 700; }
+  .avatar.big { width: 64px; height: 64px; font-size: 26px; }
+  .dot { position: absolute; right: -2px; bottom: -2px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--panel); }
+  .avatar.big .dot { width: 20px; height: 20px; border-width: 4px; border-color: var(--card); }
+  .online { background: #23a55a; } .dnd { background: #f23f43; } .idle { background: #f0b232; }
+  .who { min-width: 0; }
+  .name { color: var(--header); font-weight: 500; display: flex; gap: 4px; align-items: center; }
+  .app { background: var(--blurple); color: #fff; font-size: 10px; font-weight: 600; line-height: 15px; padding: 0 4px; border-radius: 3px; }
+  .activity { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .activity b { font-weight: 600; }
+  .profile { width: 300px; background: var(--card); border-radius: 8px; padding: 16px; display: grid; gap: 12px; }
+  .profile .head { display: flex; gap: 12px; align-items: center; }
+  .profile .name { font-size: 18px; font-weight: 600; }
+  .act { background: #111214; border-radius: 8px; padding: 10px 12px; }
+  .act .kind { color: var(--muted); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .act .l1 { color: var(--header); font-weight: 600; }
+  .act .l2 { color: var(--text); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- 描く内容。データはダミー（line1・line2 は buildPresence() の出力） -->
+<script type="application/json" id="presence">
+{
+  "bot": "Claude Bot",
+  "cards": [
+    { "label": "既定（DISCORD_PRESENCE_AGENTS 未設定）", "status": "online", "line1": "ctx 53% · 5h 46% · 7d 17%", "line2": "106K / 200K tokens · Opus 5.5 · effort high · 更新 12:34" },
+    { "label": "DISCORD_PRESENCE_AGENTS=on（作業中 2 本）", "status": "online", "line1": "ctx 53% · 5h 46% · 7d 17% · 作業 2", "line2": "106K / 200K tokens · Opus 5.5 · effort high · 更新 12:34" }
+  ]
+}
+</script>
+
+<div class="col">
+  <div class="label">メンバー一覧（幅を超えると省略される）</div>
+  <div class="members" id="members"></div>
+</div>
+<div class="col" id="profiles"></div>
+
+<script>
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  const data = JSON.parse(document.getElementById('presence').textContent)
+  const initial = esc(data.bot[0])
+  const last = data.cards[data.cards.length - 1]
+  document.getElementById('members').innerHTML =
+    `<div class="group">オンライン — 1</div>` +
+    `<div class="member"><div class="avatar">${initial}<span class="dot ${esc(last.status)}"></span></div>` +
+    `<div class="who"><div class="name">${esc(data.bot)}<span class="app">APP</span></div>` +
+    `<div class="activity">${esc(last.line1)}</div></div></div>`
+  document.getElementById('profiles').innerHTML = data.cards.map(c =>
+    `<div class="label">${esc(c.label)}</div>` +
+    `<div class="profile"><div class="head"><div class="avatar big">${initial}<span class="dot ${esc(c.status)}"></span></div>` +
+    `<div class="name">${esc(data.bot)}</div></div>` +
+    `<div class="act"><div class="kind">プレイ中</div><div class="l1">${esc(c.line1)}</div><div class="l2">${esc(c.line2)}</div></div></div>`
+  ).join('')
+</script>
+</body>
+</html>

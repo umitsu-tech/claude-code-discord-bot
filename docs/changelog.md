@@ -2,6 +2,10 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
+## v0.11.0（2026-11-19）
+
+- #105 Bot のステータスに、同じマシンで作業中のバックグラウンドのセッションの数（`作業 N`）を出せるようにした。`DISCORD_PRESENCE_AGENTS=on` のとき、更新のたびに `claude agents --json` を非同期で動かし、`kind: background` で `state` が `working` か `blocked` のものを数える。0 件や取得の失敗では何も足さない。既定は off。設定は `.env` に書いても効く
+
 ## v0.10.0（2026-11-19）
 
 - #103 reply ツールに `embeds` を追加。`text` なし・`embeds` だけでも送れる。Discord の Embed の上限を送る前に `channel/embeds.ts` で確かめ、どこが駄目かを書いたエラーにする。action `embed-command` を追加。追加分の `commands.json` に書いたコマンドをシェルを通さずに動かし、標準出力の JSON（`{ content?, embeds }`）を Embed で返す。Claude のターンを使わない。時間切れはプロセスグループごと止め、Bot トークンは渡さない。`channel/` に bun test のテストを追加

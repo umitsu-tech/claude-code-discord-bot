@@ -15,7 +15,7 @@ Claude Code の channel 機能（`claude --channels ...`）で Discord のメッ
 | メッセージの送受信 | 公式プラグインからフォークした channel サーバー（`channel/`）。アクセス管理は `/discord-bot:access` |
 | コンテキストの表示とクリア | `/ctx` で ctx / 5h / 7d の使用率、`/clear` でセッションをクリア |
 | 再起動とモデル切り替え | `/restart`（`claude update` を挟む）、`/model alias:sonnet`、`/effort level:low` |
-| Bot ステータスに使用量を表示 | アクティビティを `ctx 53% · 5h 46% · 7d 17%` に常時更新（ctx 80% 以上で赤） |
+| Bot ステータスに使用量を表示 | アクティビティを `ctx 53% · 5h 46% · 7d 17%` に常時更新（ctx 80% 以上で赤）。`DISCORD_PRESENCE_AGENTS=on` で作業中のバックグラウンドのセッションの数（`作業 2`）も出せる |
 | サーバー管理 | チャンネル・カテゴリ・フォーラムスレッドの作成・編集・削除・一覧（`server-admin` MCP、9 ツール）。`/discord-bot:setup-channel` で作成から受信テストまで |
 | スラッシュコマンドの追加 | `~/.claude/discord-bot/commands.json` に書けば任意のスキルを引数付きで呼べる。決まったコマンドの出力を Claude を通さずに Embed で返すこともできる（`embed-command`） |
 | Embed の返信 | Claude が状態の一覧などを Embed（色の帯・題名・横に並ぶ項目）で返せる。上限は送る前に検査する |

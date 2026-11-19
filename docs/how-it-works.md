@@ -14,6 +14,18 @@
 
 `channel/presence.ts` が、channel サーバーを起動した Claude Code 本体の PID を親プロセスをたどって特定し、その PID を `_claude_pid` に持つステータスラインのダンプを 20 秒ごとに読んでアクティビティを更新します（その PID のダンプが無ければ退席中のままです。PID を特定できなかったときだけ、生きているセッションの最新のダンプを使います）。ctx 80% 以上で取り込み中（赤）、対象が無ければ退席中（黄）です。 Bot が送れるアクティビティのフィールドは name / type / state / url だけです。`DISCORD_PRESENCE_MODE` で playing（既定）/ watching / listening / competing / custom を選べます（custom は吹き出し表示で狭い）。
 
+### 作業中のセッションの数
+
+`DISCORD_PRESENCE_AGENTS=on` のときは、更新のたびに `claude agents --json`（同じマシンの Claude Code のセッションの一覧）を動かし、`kind` が `background` で `state` が `working`（ターン実行中）か `blocked`（返事待ち）のものを数えて、1 行目の使用量の後ろに `作業 N` を足します。`done`・`failed`・`stopped` と、対話のセッション（`kind: "interactive"`）は数えません。
+
+- `Bun.spawn` で非同期に動かします。同期で動かすと、更新のたびに Discord のイベント処理が 0.2〜0.3 秒止まるためです。数が取れてから描くので、1 回の更新でプレゼンスを送るのは 1 度だけです。前回の取得が終わっていなければ重ねて動かさず、前回の数のまま描きます
+- 0 件のとき、`claude` が PATH に無い・終了コードが 0 でない・5 秒で終わらない・出力が配列でないときは何も足しません。失敗の理由は、変わったときだけ標準エラーに出します
+- 環境変数は `startPresence()` で読むので、channel サーバーが起動時に読み込む置き場の `.env` に書いても効きます（ランチャーは `DISCORD_PRESENCE_*` を claude に渡さないため、`.env` に書くのが確実です）。Bot トークンは `claude agents` に渡しません
+- 既定は off です。更新のたびにプロセスを 1 つ起こすコストを使わない人にかけないことと、数えるのがこの Bot と関係のない作業も含むマシン全体のセッションで、サーバーの全員に見えるステータスに出るためです。agent view は research preview なので、`claude agents --json` の出力の形が変わったら表示されなくなります（壊れはしません）
+- メンバー一覧では、アクティビティが幅を超えると後ろが省略されます。5h・7d まで並ぶと `作業 N` が隠れることがあります（実機では `ctx 63% · 作業 2` は省略されずに見えました）。全文はプロフィールに出ます。見え方は `docs/preview/presence-preview.html` で確かめられます（Discord の見た目をまねた再現）
+
+![Bot のステータスの見え方（再現）](img/presence-preview.png)
+
 ## Embed の返信
 
 reply ツールは `text` に加えて `embeds`（Discord API の Embed オブジェクトの配列）を受け付けます。状態の一覧のように構造のある情報を、左の色の帯・題名・横に並ぶ項目の枠で出すためです。マークダウンの見出しより字の大きさがそろって読みやすくなります。`text` と一緒にも、`embeds` だけでも送れます。
