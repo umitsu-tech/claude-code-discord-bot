@@ -2,6 +2,10 @@
 
 版ごとの変更点をまとめる。1 件 1〜2 行、Issue と PR の番号つき。詳しい経緯は [archive/migration-plan.md](archive/migration-plan.md) を参照。
 
+## v0.10.0（2026-11-19）
+
+- #103 reply ツールに `embeds` を追加。`text` なし・`embeds` だけでも送れる。Discord の Embed の上限を送る前に `channel/embeds.ts` で確かめ、どこが駄目かを書いたエラーにする。action `embed-command` を追加。追加分の `commands.json` に書いたコマンドをシェルを通さずに動かし、標準出力の JSON（`{ content?, embeds }`）を Embed で返す。Claude のターンを使わない。時間切れはプロセスグループごと止め、Bot トークンは渡さない。`channel/` に bun test のテストを追加
+
 ## v0.9.2（2026-09-25）
 
 - #96 同梱スキルを Claude Opus 5.5 向けに書き直し。clear・ctx・setup-channel の本文から強調と重複を外し、`description` は何をしていつ使うかだけにして呼び出しの言い回しを `when_to_use` へ移した（ctx は `effort: low`）。access・configure は説明文と強調だけを手直し。`clear_session.sh` を POSIX sh にし（値のない `--chat-id` で止まらなくなる不具合も修正）、setup-channel の受信設定を `register_channel.py` に出した。自動で直すのは `guilds` が無くトップレベルの `allowFrom` がある構成だけで、`create_channel` が書くエントリの `requireMention` を false にする。それ以外の構成では何も書かずに止め、手で決める。書き込む直前に access.json を読み直し、途中で変わっていたら書かずに止める

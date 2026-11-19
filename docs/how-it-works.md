@@ -14,6 +14,37 @@
 
 `channel/presence.ts` が、channel サーバーを起動した Claude Code 本体の PID を親プロセスをたどって特定し、その PID を `_claude_pid` に持つステータスラインのダンプを 20 秒ごとに読んでアクティビティを更新します（その PID のダンプが無ければ退席中のままです。PID を特定できなかったときだけ、生きているセッションの最新のダンプを使います）。ctx 80% 以上で取り込み中（赤）、対象が無ければ退席中（黄）です。 Bot が送れるアクティビティのフィールドは name / type / state / url だけです。`DISCORD_PRESENCE_MODE` で playing（既定）/ watching / listening / competing / custom を選べます（custom は吹き出し表示で狭い）。
 
+## Embed の返信
+
+reply ツールは `text` に加えて `embeds`（Discord API の Embed オブジェクトの配列）を受け付けます。状態の一覧のように構造のある情報を、左の色の帯・題名・横に並ぶ項目の枠で出すためです。マークダウンの見出しより字の大きさがそろって読みやすくなります。`text` と一緒にも、`embeds` だけでも送れます。
+
+```js
+{
+  "chat_id": "...",
+  "text": "いまのセッションです",   // 省略可
+  "embeds": [
+    {
+      "title": "Sessions",
+      "color": "#5865F2",           // "#RRGGBB" か整数（0x5865F2 = 5793266）
+      "fields": [
+        { "name": "main", "value": "running · ctx 42%", "inline": true },
+        { "name": "docs", "value": "idle · ctx 8%", "inline": true }
+      ],
+      "footer": { "text": "2 sessions" },
+      "timestamp": "2026-11-19T12:00:00+09:00"
+    }
+  ]
+}
+```
+
+- 扱うキーは `title`・`description`・`url`・`color`・`fields`（`name`・`value`・`inline`）・`footer`（`text`）・`timestamp` だけです。それ以外のキー（`image` や `author` など）はエラーにします。黙って捨てると、書いたのに表示されない理由が分からなくなるためです
+- `channel/embeds.ts` が Discord の上限を送る前に確かめます。上限は 1 メッセージ 10 個、`title` 256 文字、`description` 4096 文字、`fields` 25 個、`fields` の `name` 256 文字・`value` 1024 文字、`footer.text` 2048 文字、そのメッセージの全 Embed の合計 6000 文字です。超えたら `embeds[0].fields[2].value is 1200 characters (max 1024)` のように、どこが駄目かを書いたエラーをツールの結果として返します。Discord と同じく、前後の空白は数えません
+- 中身が空の Embed（`color` だけなど）や、`name`・`value` が空の field もエラーです
+- 本文が 2000 文字を超えて分割されるときは、Embed は最後のメッセージに付けます。本文の途中に Embed が挟まらないようにするためです
+- 見え方は `docs/preview/embed-preview.html` で手元で確かめられます。Discord の見た目を CSS でまねた再現なので、字形や余白は本物と少し違います
+
+![Embed の見え方（再現）](img/embed-preview.png)
+
 ## スラッシュコマンド
 
 ![スラッシュコマンドの流れ](diagrams/slash-command.png)
@@ -37,7 +68,7 @@ channel サーバーは起動時に、Bot が参加している各サーバー�
 
 ### サーバー側で処理するコマンド（action）
 
-定義に `skill` ではなく `action` を書いたコマンドは、Claude に渡さず channel サーバー自身が処理します（`channel/session-control.ts`、`/voice` だけ `channel/voice-command.ts`）。Claude のターンを使わないので、 Claude が長い作業の途中でも即座に効きます。 `action` は同梱の `model`・`effort`・`restart`・`voice` だけで、追加分の `commands.json` からも同名で上書きできます。
+定義に `skill` ではなく `action` を書いたコマンドは、Claude に渡さず channel サーバー自身が処理します（`channel/session-control.ts`、`/voice` は `channel/voice-command.ts`、`embed-command` は `channel/embed-command.ts`）。Claude のターンを使わないので、 Claude が長い作業の途中でも即座に効きます。 `action` は `model`・`effort`・`restart`・`voice`・`embed-command` です。前の 4 つは同梱の `commands.json` にあり、追加分の `commands.json` からも同名で上書きできます。`embed-command` は追加分に自分で書きます（下の「コマンドの出力を Embed で返す」）。
 
 ```js
 [
@@ -51,6 +82,63 @@ channel サーバーは起動時に、Bot が参加している各サーバー�
   }
 ]
 ```
+
+### コマンドの出力を Embed で返す（embed-command）
+
+`action: "embed-command"` のコマンドは、定義に書いたコマンドを channel サーバーが動かし、標準出力の JSON を Embed にして返事にします。Claude のターンを使わないので、Claude が長い作業の途中でもすぐ返ります。セッションの一覧のような、決まった手順で作れる情報の表示に向いています。定義は追加分の `~/.claude/discord-bot/commands.json` に書きます。
+
+```js
+[
+  {
+    "name": "sessions",
+    "description": "tmux のセッションの一覧を表示する",
+    "action": "embed-command",
+    "command": ["uv", "run", "--script", "/abs/path/tmux_sessions.py"],
+    "timeout_ms": 15000,   // 省略時 15000。1000〜600000 に丸める
+    "ephemeral": false     // true で本人にだけ見せる。省略時 false（チャンネルの全員に見える）
+  }
+]
+```
+
+コマンドは標準出力に次の形の JSON を 1 つ書きます。`embeds` の中身は reply ツールの `embeds` と同じで、同じ検査をします。
+
+```js
+{
+  "content": "いまのセッション",                 // 省略可。2000 文字まで
+  "embeds": [{ "title": "tmux sessions", "fields": [] }]   // 必須。content があれば空の配列でもよい
+}
+```
+
+例として、tmux のセッションの一覧を返すスクリプトです。
+
+```python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# ///
+import json
+import subprocess
+
+FMT = "#{session_name}\t#{session_windows}\t#{?session_attached,attached,detached}"
+out = subprocess.run(["tmux", "list-sessions", "-F", FMT], capture_output=True, text=True, check=True).stdout
+
+fields = []
+for line in out.splitlines():
+    name, windows, state = line.split("\t")
+    fields.append({"name": name, "value": f"{windows} windows · {state}", "inline": True})
+
+embed = {"title": "tmux sessions", "color": 0x5865F2, "fields": fields[:25]}
+if not fields:
+    embed["description"] = "セッションはありません"
+print(json.dumps({"embeds": [embed]}, ensure_ascii=False))
+```
+
+- `command` はシェルを通さずに、引数の配列のまま実行します（`Bun.spawn`）。パイプやリダイレクトが要るときはスクリプトの中に書きます。作業ディレクトリは channel サーバーのものなので、パスは絶対パスで書きます。`command` が文字列の配列でない定義は登録せず、起動ログに理由を出します
+- スラッシュコマンドの `options` はコマンドに渡しません（定義にあっても登録しません）。Discord から渡る値でコマンドの動きが変わらないようにするためです
+- 環境変数は channel サーバーのものを引き継ぎます。Bot トークン（`DISCORD_BOT_TOKEN`）だけは渡しません
+- 3 秒の応答期限に間に合わせるため、受けたらすぐ `deferReply` し、コマンドが終わったら `editReply` で Embed を出します
+- 失敗したときは、本人にだけ見える形で短いエラーを返します。終了コードが 0 でないときは標準エラーの先頭 300 文字を添え、出力が JSON でない・形が違うときはどこが違うかを書きます。全文は channel サーバーの標準エラーに残します。全員に見える形の定義では、考え中の返事を消してから本人にだけ見える返事を送ります。消せなかったときは、全員に見える返事を「失敗した」とだけ書き換えます
+- `timeout_ms` を過ぎたら、コマンドが起こした子プロセスごと止めます（新しいプロセスグループで起動し、グループに SIGKILL を送る）。裏で動き続けるプロセスを残すと、標準出力が閉じないので時間切れになります。標準出力は 1 MiB まで読み、超えたらその時点で同じようにグループごと止めます
 
 ### /model と /effort の流れ
 
