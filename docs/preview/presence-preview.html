@@ -61,7 +61,7 @@
 </script>
 
 <div class="col">
-  <div class="label">メンバー一覧（長いと省略される）</div>
+  <div class="label">メンバー一覧（幅を超えると省略される）</div>
   <div class="members" id="members"></div>
 </div>
 <div class="col" id="profiles"></div>
@@ -75,7 +75,7 @@
     `<div class="group">オンライン — 1</div>` +
     `<div class="member"><div class="avatar">${initial}<span class="dot ${esc(last.status)}"></span></div>` +
     `<div class="who"><div class="name">${esc(data.bot)}<span class="app">APP</span></div>` +
-    `<div class="activity"><b>${esc(last.line1)}</b> をプレイ中</div></div></div>`
+    `<div class="activity">${esc(last.line1)}</div></div></div>`
   document.getElementById('profiles').innerHTML = data.cards.map(c =>
     `<div class="label">${esc(c.label)}</div>` +
     `<div class="profile"><div class="head"><div class="avatar big">${initial}<span class="dot ${esc(c.status)}"></span></div>` +
