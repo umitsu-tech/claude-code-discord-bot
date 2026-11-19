@@ -138,7 +138,14 @@ export async function runEmbedCommand(command: string[], timeoutMs: number): Pro
   const outReader = proc.stdout.getReader()
   const errReader = proc.stderr.getReader()
   let timedOut = false
-  const killGroup = (): void => {
+  let overflowed = false
+  let abandon: () => void = () => {}
+  const abandoned = new Promise<'abandoned'>(resolve => {
+    abandon = () => resolve('abandoned')
+  })
+  let graceTimer: ReturnType<typeof setTimeout> | undefined
+  /** グループごと止め、KILL_GRACE_MS たっても読み取りが終わらなければ打ち切る */
+  const stop = (): void => {
     try {
       process.kill(-proc.pid, 'SIGKILL')
     } catch {
@@ -146,21 +153,19 @@ export async function runEmbedCommand(command: string[], timeoutMs: number): Pro
         proc.kill('SIGKILL')
       } catch {}
     }
+    graceTimer ??= setTimeout(abandon, KILL_GRACE_MS)
   }
-  let abandon: () => void = () => {}
-  const abandoned = new Promise<'abandoned'>(resolve => {
-    abandon = () => resolve('abandoned')
-  })
-  let graceTimer: ReturnType<typeof setTimeout> | undefined
   const timer = setTimeout(() => {
     timedOut = true
-    killGroup()
-    graceTimer = setTimeout(abandon, KILL_GRACE_MS)
+    stop()
   }, timeoutMs)
 
   const finished = Promise.all([
     // 上限を超えた時点で止める。出し続けるコマンドを時間切れまで動かさないため
-    readCapped(outReader, MAX_STDOUT_BYTES, killGroup),
+    readCapped(outReader, MAX_STDOUT_BYTES, () => {
+      overflowed = true
+      stop()
+    }),
     readCapped(errReader, MAX_STDERR_BYTES),
     proc.exited,
   ])
@@ -169,18 +174,19 @@ export async function runEmbedCommand(command: string[], timeoutMs: number): Pro
   clearTimeout(graceTimer)
 
   const seconds = Math.round(timeoutMs / 100) / 10
+  const overflowError = `出力が大きすぎるので止めたよ（${MAX_STDOUT_BYTES / 1024 / 1024} MiB まで）。`
   if (result === 'abandoned') {
     // グループを止めても標準出力が閉じない（別のグループに抜けた孫が握っている）。読み取りを捨てて返す
     void outReader.cancel().catch(() => {})
     void errReader.cancel().catch(() => {})
-    log(`timed out after ${timeoutMs}ms and the output did not close: ${JSON.stringify(command)}`)
-    return { ok: false, error: `${seconds} 秒以内に終わらなかったので止めたよ。` }
+    log(`stopped (${overflowed ? 'stdout overflow' : `timeout ${timeoutMs}ms`}) but the output did not close: ${JSON.stringify(command)}`)
+    return { ok: false, error: overflowed ? overflowError : `${seconds} 秒以内に終わらなかったので止めたよ。` }
   }
   const [out, err, exitCode] = result
   // 上限超えで止めたときは終了コードが SIGKILL になるので、先に見る
-  if (out.overflow) {
+  if (overflowed) {
     log(`stdout exceeded ${MAX_STDOUT_BYTES} bytes, killed: ${JSON.stringify(command)}`)
-    return { ok: false, error: `出力が大きすぎるので止めたよ（${MAX_STDOUT_BYTES / 1024 / 1024} MiB まで）。` }
+    return { ok: false, error: overflowError }
   }
   if (timedOut) {
     log(`timed out after ${timeoutMs}ms: ${JSON.stringify(command)}`)
@@ -230,7 +236,8 @@ export async function handleEmbedCommand(interaction: ChatInputCommandInteractio
     return
   }
   // 全員に見える形で defer したので、考え中の返事を消してから本人にだけエラーを見せる。
-  // 消せなかったときも、全員に見える返事には詳細（標準エラーの先頭など）を書かない
+  // 考え中の返事が残っているあいだの followUp は、その返事を（全員に見えるまま）書き換えてしまうので、
+  // 消せたときだけ送る。消せなかったときは固定の文言にとどめ、詳細は標準エラーのログにだけ残す
   const deleted = await interaction.deleteReply().then(
     () => true,
     e => {
@@ -238,7 +245,12 @@ export async function handleEmbedCommand(interaction: ChatInputCommandInteractio
       return false
     },
   )
-  if (!deleted) await interaction.editReply({ content: `/${def.name} は失敗したよ。` }).catch(() => {})
+  if (!deleted) {
+    await interaction
+      .editReply({ content: `/${def.name} は失敗したよ。` })
+      .catch(e => log(`/${def.name}: editReply failed: ${e}`))
+    return
+  }
   await interaction
     .followUp({ content: message, flags: MessageFlags.Ephemeral })
     .catch(e => log(`/${def.name}: followUp failed: ${e}`))
