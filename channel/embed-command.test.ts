@@ -95,9 +95,12 @@ describe('runEmbedCommand', () => {
     if (!r.ok) expect(r.error).toContain('0.3 秒以内に終わらなかった')
   })
 
-  test('rejects output larger than 1 MiB', async () => {
-    const r = await runEmbedCommand(sh('head -c 1100000 /dev/zero | tr "\\0" a'), 5_000)
+  test('stops a command whose output passes 1 MiB', async () => {
+    const started = Date.now()
+    // 出し続けるコマンドでも、時間切れを待たずに上限を超えた時点で止まる
+    const r = await runEmbedCommand(['yes'], 10_000)
+    expect(Date.now() - started).toBeLessThan(3_000)
     expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.error).toContain('出力が大きすぎる')
+    if (!r.ok) expect(r.error).toContain('出力が大きすぎるので止めた')
   })
 })

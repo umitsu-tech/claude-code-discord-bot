@@ -71,10 +71,14 @@ export function parseCommandOutput(stdout: string): EmbedReply {
   return content ? { content, embeds } : { embeds }
 }
 
-/** 上限まで読み、超えたぶんは読み捨てる（読まないと子プロセスが書き込みで止まるため） */
+/**
+ * 上限まで読み、超えたぶんは読み捨てる（読まないと子プロセスが書き込みで止まるため）。
+ * 初めて上限を超えたときに onOverflow を 1 回呼ぶ（標準出力ではコマンドを止めるのに使う）
+ */
 async function readCapped(
   reader: { read(): Promise<{ done: boolean; value?: Uint8Array }> },
   cap: number,
+  onOverflow?: () => void,
 ): Promise<{ text: string; overflow: boolean }> {
   const chunks: Uint8Array[] = []
   let size = 0
@@ -82,13 +86,14 @@ async function readCapped(
   for (;;) {
     const { done, value } = await reader.read()
     if (done || !value) break
-    if (size < cap) {
-      const take = value.subarray(0, cap - size)
+    const take = size < cap ? value.subarray(0, cap - size) : value.subarray(0, 0)
+    if (take.length > 0) {
       chunks.push(take)
       size += take.length
-      if (take.length < value.length) overflow = true
-    } else {
+    }
+    if (take.length < value.length && !overflow) {
       overflow = true
+      onOverflow?.()
     }
   }
   return { text: Buffer.concat(chunks).toString('utf8'), overflow }
@@ -154,7 +159,8 @@ export async function runEmbedCommand(command: string[], timeoutMs: number): Pro
   }, timeoutMs)
 
   const finished = Promise.all([
-    readCapped(outReader, MAX_STDOUT_BYTES),
+    // 上限を超えた時点で止める。出し続けるコマンドを時間切れまで動かさないため
+    readCapped(outReader, MAX_STDOUT_BYTES, killGroup),
     readCapped(errReader, MAX_STDERR_BYTES),
     proc.exited,
   ])
@@ -171,6 +177,11 @@ export async function runEmbedCommand(command: string[], timeoutMs: number): Pro
     return { ok: false, error: `${seconds} 秒以内に終わらなかったので止めたよ。` }
   }
   const [out, err, exitCode] = result
+  // 上限超えで止めたときは終了コードが SIGKILL になるので、先に見る
+  if (out.overflow) {
+    log(`stdout exceeded ${MAX_STDOUT_BYTES} bytes, killed: ${JSON.stringify(command)}`)
+    return { ok: false, error: `出力が大きすぎるので止めたよ（${MAX_STDOUT_BYTES / 1024 / 1024} MiB まで）。` }
+  }
   if (timedOut) {
     log(`timed out after ${timeoutMs}ms: ${JSON.stringify(command)}`)
     return { ok: false, error: withStderr(`${seconds} 秒以内に終わらなかったので止めたよ。`, err.text) }
@@ -179,10 +190,6 @@ export async function runEmbedCommand(command: string[], timeoutMs: number): Pro
     const how = proc.signalCode ? `シグナル ${proc.signalCode}` : `終了コード ${exitCode}`
     log(`exited with ${proc.signalCode ?? exitCode}: ${JSON.stringify(command)}: ${err.text.trim().slice(0, 1000)}`)
     return { ok: false, error: withStderr(`コマンドが失敗したよ（${how}）。`, err.text) }
-  }
-  if (out.overflow) {
-    log(`stdout exceeded ${MAX_STDOUT_BYTES} bytes: ${JSON.stringify(command)}`)
-    return { ok: false, error: `出力が大きすぎるよ（${MAX_STDOUT_BYTES / 1024 / 1024} MiB まで）。` }
   }
   try {
     return { ok: true, reply: parseCommandOutput(out.text) }
@@ -222,14 +229,16 @@ export async function handleEmbedCommand(interaction: ChatInputCommandInteractio
     await interaction.editReply({ content: message }).catch(e => log(`/${def.name}: editReply failed: ${e}`))
     return
   }
-  // 全員に見える形で defer したので、考え中の返事を消してから本人にだけエラーを見せる
-  try {
-    await interaction.deleteReply()
-  } catch (e) {
-    log(`/${def.name}: deleteReply failed, showing the error in the reply instead: ${e}`)
-    await interaction.editReply({ content: message }).catch(() => {})
-    return
-  }
+  // 全員に見える形で defer したので、考え中の返事を消してから本人にだけエラーを見せる。
+  // 消せなかったときも、全員に見える返事には詳細（標準エラーの先頭など）を書かない
+  const deleted = await interaction.deleteReply().then(
+    () => true,
+    e => {
+      log(`/${def.name}: deleteReply failed: ${e}`)
+      return false
+    },
+  )
+  if (!deleted) await interaction.editReply({ content: `/${def.name} は失敗したよ。` }).catch(() => {})
   await interaction
     .followUp({ content: message, flags: MessageFlags.Ephemeral })
     .catch(e => log(`/${def.name}: followUp failed: ${e}`))
