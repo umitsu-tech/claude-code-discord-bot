@@ -1,0 +1,165 @@
+<!doctype html>
+<!--
+  embed-preview.html — Discord の Embed の見え方を手元で確かめるための再現ページ（#103）
+
+  Discord のダークテーマの見た目を CSS でまねたもので、本物とは字形や余白が少し違う。
+  下の <script id="messages"> の JSON を書き換えてブラウザで開くと、その内容で描く。
+  Embed のキーは reply ツールの embeds と embed-command の出力と同じ
+  （title・description・url・color・fields[{name, value, inline}]・footer{text}・timestamp）。
+  description と field の value は **太字**、`コード`、改行だけを描く（Discord のマークダウンの一部）。
+  外部のファイルやサービスは読まない。
+
+  PR 用の画像はヘッドレスの Chrome で撮る。
+    google-chrome --headless=new --hide-scrollbars --force-device-scale-factor=2 \
+      --window-size=760,520 --screenshot=docs/img/embed-preview.png docs/preview/embed-preview.html
+-->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Embed preview</title>
+<style>
+  :root {
+    --bg: #313338; --text: #dbdee1; --header: #f2f3f5; --muted: #949ba4; --embed-bg: #2b2d31;
+    --link: #00a8fc; --code-bg: #1e1f22; --blurple: #5865f2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 0; background: var(--bg); color: var(--text);
+    font: 16px/1.375 "Noto Sans", "Noto Sans CJK JP", "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+  }
+  .message { position: relative; padding: 4px 48px 6px 72px; margin-top: 12px; }
+  .message:first-child { margin-top: 0; }
+  .avatar {
+    position: absolute; left: 16px; top: 6px; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700; font-size: 18px; color: #fff;
+  }
+  .message.has-cmd > .avatar { top: 28px; }
+  .avatar.small { position: static; width: 16px; height: 16px; font-size: 9px; display: inline-grid; vertical-align: -2px; margin-right: 4px; }
+  .command-line { position: relative; font-size: 14px; color: var(--muted); margin: 0 0 2px; }
+  .command-line::before {
+    content: ""; position: absolute; left: -36px; top: 9px; width: 30px; height: 12px;
+    border-left: 2px solid #4e5058; border-top: 2px solid #4e5058; border-top-left-radius: 6px;
+  }
+  .command-line .user { color: var(--header); font-weight: 500; }
+  .command-line .cmd { color: var(--link); }
+  .head { display: flex; align-items: baseline; gap: 6px; }
+  .name { color: var(--header); font-weight: 500; }
+  .app {
+    background: var(--blurple); color: #fff; font-size: 10px; font-weight: 600; line-height: 15px;
+    padding: 0 4px; border-radius: 3px; position: relative; top: -1px;
+  }
+  .time { color: var(--muted); font-size: 12px; }
+  .content { white-space: pre-wrap; }
+  .embed {
+    max-width: 520px; margin-top: 4px; background: var(--embed-bg); border-left: 4px solid #1e1f22;
+    border-radius: 4px; padding: 8px 16px 16px 12px; display: grid; gap: 8px;
+  }
+  .embed-title { color: var(--header); font-weight: 600; font-size: 16px; margin-top: 8px; }
+  .embed-title a { color: var(--link); text-decoration: none; }
+  .embed-desc { font-size: 14px; white-space: pre-wrap; }
+  .fields { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 8px; row-gap: 8px; }
+  .field-name { color: var(--header); font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .field-value { font-size: 14px; white-space: pre-wrap; }
+  .footer { color: #b5bac1; font-size: 12px; font-weight: 500; }
+  code { background: var(--code-bg); border-radius: 3px; padding: 0 3px; font-size: 85%; font-family: "Noto Sans Mono CJK JP", Consolas, monospace; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- 描くメッセージ。データはダミー -->
+<script type="application/json" id="messages">
+[
+  {
+    "command": { "user": "user", "name": "sessions" },
+    "author": "Claude Bot",
+    "time": "今日 12:34",
+    "embeds": [
+      {
+        "title": "作業中のセッション",
+        "description": "3 本のうち 2 本が動いています",
+        "color": "#5865F2",
+        "fields": [
+          { "name": "docs-update", "value": "作業中\nctx 42% · 12 分", "inline": true },
+          { "name": "api-refactor", "value": "返事待ち\nctx 67% · 35 分", "inline": true },
+          { "name": "release-notes", "value": "完了\nctx 18% · 2 時間前", "inline": true }
+        ],
+        "footer": { "text": "/sessions · embed-command" },
+        "timestamp": "2026-11-19T03:34:00Z"
+      }
+    ]
+  },
+  {
+    "author": "Claude Bot",
+    "time": "今日 12:36",
+    "content": "テストが終わりました。結果をまとめます。",
+    "embeds": [
+      {
+        "title": "テストの結果",
+        "color": "#23A55A",
+        "fields": [
+          { "name": "通過", "value": "40 件", "inline": true },
+          { "name": "失敗", "value": "0 件", "inline": true },
+          { "name": "時間", "value": "2.6 秒", "inline": true },
+          { "name": "対象", "value": "`channel/embeds.test.ts`\n`channel/embed-command.test.ts`" }
+        ],
+        "footer": { "text": "bun test" }
+      }
+    ]
+  }
+]
+</script>
+
+<script>
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  // Discord のマークダウンのうち、**太字**・`コード`・改行だけを描く
+  const md = s => esc(s.trim()).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  const color = c => (typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : c || '#1e1f22')
+  const fmtTime = iso => {
+    const d = new Date(iso)
+    return `今日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  // inline の field は 1 行に 3 つまで並び、並んだ数で幅を等分する。inline でない field は 1 行を使う
+  function fieldsHtml(fields) {
+    const rows = []
+    for (const f of fields) {
+      const last = rows[rows.length - 1]
+      if (f.inline && last && last.inline && last.items.length < 3) last.items.push(f)
+      else rows.push({ inline: !!f.inline, items: [f] })
+    }
+    let html = ''
+    for (const row of rows) {
+      const span = 12 / row.items.length
+      row.items.forEach((f, i) => {
+        html += `<div style="grid-column:${i * span + 1} / span ${row.inline ? span : 12}">` +
+          `<div class="field-name">${md(f.name)}</div><div class="field-value">${md(f.value)}</div></div>`
+      })
+    }
+    return `<div class="fields">${html}</div>`
+  }
+
+  function embedHtml(e) {
+    const parts = []
+    if (e.title) parts.push(`<div class="embed-title">${e.url ? `<a href="${esc(e.url)}">${md(e.title)}</a>` : md(e.title)}</div>`)
+    if (e.description) parts.push(`<div class="embed-desc">${md(e.description)}</div>`)
+    if (e.fields && e.fields.length) parts.push(fieldsHtml(e.fields))
+    const foot = [e.footer && e.footer.text ? esc(e.footer.text) : '', e.timestamp ? fmtTime(e.timestamp) : ''].filter(Boolean)
+    if (foot.length) parts.push(`<div class="footer">${foot.join(' • ')}</div>`)
+    return `<div class="embed" style="border-left-color:${esc(color(e.color))}">${parts.join('')}</div>`
+  }
+
+  const messages = JSON.parse(document.getElementById('messages').textContent)
+  document.getElementById('root').innerHTML = messages.map(m => {
+    const cmd = m.command
+      ? `<div class="command-line"><span class="avatar small" style="background:#80848e">${esc(m.command.user[0].toUpperCase())}</span>` +
+        `<span class="user">${esc(m.command.user)}</span> が <span class="cmd">/${esc(m.command.name)}</span> を使用しました</div>`
+      : ''
+    return `<div class="message${cmd ? ' has-cmd' : ''}">${cmd}<div class="avatar" style="background:var(--blurple)">${esc(m.author[0])}</div>` +
+      `<div class="head"><span class="name">${esc(m.author)}</span><span class="app">APP</span><span class="time">${esc(m.time)}</span></div>` +
+      (m.content ? `<div class="content">${md(m.content)}</div>` : '') +
+      (m.embeds || []).map(embedHtml).join('') + '</div>'
+  }).join('')
+</script>
+</body>
+</html>
