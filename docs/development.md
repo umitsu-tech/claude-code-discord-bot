@@ -13,6 +13,16 @@ claude plugin update discord-bot@ryuki-plugins --scope project
 
 channel サーバーの元になった公式プラグインは `discord@claude-plugins-official` の 0.0.4 です。上流に変更があったら `channel/server.ts` に取り込みます（差分の要点はファイル先頭のコメントに書いてあります）。
 
+## テストと型の検査
+
+channel サーバーのテストは Bun の組み込みのテストランナーで動かします。Discord にはつながず、Embed の上限の検査、embed-command の出力の読み取り、コマンドの実行（`sh` を使う）と時間切れを確かめます。
+
+```sh
+cd channel && bun test
+```
+
+型の検査の仕組みはリポジトリに置いていません。TypeScript を依存に足すと、channel サーバーの起動時の `bun install` で利用者の環境にも入るためです。確かめるときは、別のディレクトリに `typescript` と `@types/bun` を入れ、`channel/*.ts` を対象にした tsconfig（`strict`、`moduleResolution: "bundler"`、`types: ["bun"]`、`skipLibCheck`）で `tsc --noEmit` を実行します。
+
 ## ディレクトリ構成
 
 ```
@@ -23,6 +33,9 @@ channel/                            Discord channel サーバー（公式プラ�
   presence.ts                       Bot ステータスへの使用量表示
   commands.ts / commands.json       スラッシュコマンドの登録と、スキル呼び出しへの変換
   session-control.ts                /model・/effort・/restart をサーバー側で処理（ペイン特定・send-keys・監視・完了通知）
+  embeds.ts                         Embed の形と Discord の上限の検査（reply ツールの embeds と embed-command の出力で共用）
+  embed-command.ts                  action: "embed-command"（決まったコマンドを動かし、標準出力の JSON を Embed で返す）
+  *.test.ts                         bun test のテスト（embeds.ts・embed-command.ts。Discord にはつながない）
   ACCESS.md                         アクセス制御の説明（上流をスキル名だけ書き換えたもの）
   UPSTREAM-README.md                上流の README（原文のまま）
 voice/                              ボイスチャンネル用の Node プロセス（`@discordjs/voice` が Bun で動かないので channel と分けてある）

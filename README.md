@@ -17,7 +17,8 @@ Claude Code の channel 機能（`claude --channels ...`）で Discord のメッ
 | 再起動とモデル切り替え | `/restart`（`claude update` を挟む）、`/model alias:sonnet`、`/effort level:low` |
 | Bot ステータスに使用量を表示 | アクティビティを `ctx 53% · 5h 46% · 7d 17%` に常時更新（ctx 80% 以上で赤） |
 | サーバー管理 | チャンネル・カテゴリ・フォーラムスレッドの作成・編集・削除・一覧（`server-admin` MCP、9 ツール）。`/discord-bot:setup-channel` で作成から受信テストまで |
-| スラッシュコマンドの追加 | `~/.claude/discord-bot/commands.json` に書けば任意のスキルを引数付きで呼べる |
+| スラッシュコマンドの追加 | `~/.claude/discord-bot/commands.json` に書けば任意のスキルを引数付きで呼べる。決まったコマンドの出力を Claude を通さずに Embed で返すこともできる（`embed-command`） |
+| Embed の返信 | Claude が状態の一覧などを Embed（色の帯・題名・横に並ぶ項目）で返せる。上限は送る前に検査する |
 | 音声入力（聞き取りのみ） | `/voice join`・`leave`・`status`。発話を whisper.cpp でローカル文字起こしし、テキストチャットに返す |
 
 使い方の詳細と返事の例は [docs/usage.md](docs/usage.md) にあります。
@@ -81,6 +82,15 @@ Claude Code の channel 機能（`claude --channels ...`）で Discord のメッ
 2 本目の起動側フォルダは、一度そのフォルダで `claude` を対話で起動し、フォルダを信頼するか聞くダイアログに答えておいてください。信頼していないフォルダでは Claude Code がフックとステータスラインの実行をスキップするため、`/clear` の完了通知が出ず、Bot のステータス表示も更新されません（`claude --debug` のログに `workspace trust not accepted` と出ます）。ダイアログが出ない場合は、公式ドキュメントにあるとおり `~/.claude.json` の `projects["<フォルダのパス>"].hasTrustDialogAccepted` を `true` にしてください。
 
 1 つの Bot を複数のサーバーに招待する構成は勧めません。server-admin MCP は `DISCORD_GUILD_ID` が無いと参加サーバーを自動検出しますが、複数に参加していると起動を止めるためです。サーバーごとに Bot を分けてください。
+
+## コマンドを動かすスラッシュコマンド（embed-command）の注意
+
+`action: "embed-command"` のスラッシュコマンドは、channel サーバーを動かしているユーザーの権限で、手元のコマンドを実行します。書き方は [docs/how-it-works.md](docs/how-it-works.md) の「コマンドの出力を Embed で返す（embed-command）」にあります。
+
+- 動かすコマンドは、手元の `~/.claude/discord-bot/commands.json` にしか書けません。Discord から選べるのは定義済みのコマンド名だけで、コマンドや引数を Discord から渡すことはできません（スラッシュコマンドの `options` もコマンドには渡しません）
+- 打てるのは、ほかのスラッシュコマンドと同じく `access.json` の `allowFrom` に載っている利用者だけです。打てる場所も、受信設定のあるチャンネルか DM に限ります
+- コマンドはシェルを通さずに引数の配列のまま実行します。環境変数は channel サーバーのものを引き継ぎますが、Bot トークン（`DISCORD_BOT_TOKEN`）は渡しません
+- 出力はそのまま Discord に出ます。既定ではチャンネルの全員に見えるので、秘密の情報を出すコマンドは登録しないでください
 
 ## ドキュメント
 
