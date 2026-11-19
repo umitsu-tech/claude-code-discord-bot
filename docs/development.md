@@ -15,7 +15,7 @@ channel サーバーの元になった公式プラグインは `discord@claude-p
 
 ## テストと型の検査
 
-channel サーバーのテストは Bun の組み込みのテストランナーで動かします。Discord にはつながず、Embed の上限の検査、embed-command の出力の読み取り、コマンドの実行（`sh` を使う）と時間切れを確かめます。
+channel サーバーのテストは Bun の組み込みのテストランナーで動かします。Discord にはつながず、Embed の上限の検査、embed-command の出力の読み取り、コマンドの実行（`sh` を使う）と時間切れ、presence の作業中のセッションの数え方と表示を確かめます。
 
 ```sh
 cd channel && bun test
@@ -35,7 +35,7 @@ channel/                            Discord channel サーバー（公式プラ�
   session-control.ts                /model・/effort・/restart をサーバー側で処理（ペイン特定・send-keys・監視・完了通知）
   embeds.ts                         Embed の形と Discord の上限の検査（reply ツールの embeds と embed-command の出力で共用）
   embed-command.ts                  action: "embed-command"（決まったコマンドを動かし、標準出力の JSON を Embed で返す）
-  *.test.ts                         bun test のテスト（embeds.ts・embed-command.ts。Discord にはつながない）
+  *.test.ts                         bun test のテスト（embeds.ts・embed-command.ts・presence.ts。Discord にはつながない）
   ACCESS.md                         アクセス制御の説明（上流をスキル名だけ書き換えたもの）
   UPSTREAM-README.md                上流の README（原文のまま）
 voice/                              ボイスチャンネル用の Node プロセス（`@discordjs/voice` が Bun で動かないので channel と分けてある）
