@@ -22,6 +22,6 @@ Claude Code の公式 Discord プラグインに無い機能を補う自作プ�
 - 最終更新: 2026-11-19
 - いまの版と稼働状態: 稼働中は v0.9.2。v0.10.0（#103）と v0.11.0（#105、#103 のブランチに積んだ PR）はマージ待ち。管理者設定 allowedChannelPlugins で承認したうえで `DISCORD_BOT_CHANNEL_MODE=fork discord-start` で起動する。フォーク版 channel サーバーが送受信を担当し、公式プラグインは使っていない
 - 直近の完了: Bot のステータスに作業中のセッションの数 #105（v0.11.0、PR マージ待ち） / reply ツールの Embed と action `embed-command` #103（v0.10.0、PR マージ待ち） / スキルの Opus 5.5 向け書き直しとスクリプト化 #96（v0.9.2） / 複数インスタンス対応とギルド単位の既定 #85〜#93（v0.8.1〜v0.9.1）
-- 残り・次の一歩: #103 はマージ後に plugin update とセッションの再起動で反映し、Discord で reply の `embeds` と、追加分の commands.json に書いた embed-command（例: `/sessions`）が Claude の作業中でも返ることを確かめる。#105 は `.env` に `DISCORD_PRESENCE_AGENTS=on` を書いて再起動し、ステータスに `作業 N` が出ることを確かめる。テストは `cd channel && bun test`（docs/development.md）。受信設定のエントリの設計の見直し（#98）は要検討。/clear を Bot 側に寄せる案（#52）は見送り
+- 残り・次の一歩: #105 の版（#103 を含む）を実機で動かし、reply の `embeds`、embed-command の `/sessions`、`.env` の `DISCORD_PRESENCE_AGENTS=on` でのステータスの `作業 N` が出ることを確かめた（PR #104・#106 に画像）。embed-command の失敗時（考え中の返事を消して本人にだけ返す）は実機では未確認。マージ後は plugin update とセッションの再起動で反映する。テストは `cd channel && bun test`（docs/development.md）。型の検査の仕組みづくりは #107。受信設定のエントリの設計の見直し（#98）は要検討。/clear を Bot 側に寄せる案（#52）は見送り
 - 履歴: docs/changelog.md
 - 関連リソース: リポジトリ https://github.com/umitsu-tech/claude-code-discord-bot（Public）、マーケットプレイス https://github.com/umitsu-tech/claude-plugins、discord-workspace の `memory/tasks.md`（台帳の入口）と `docs/discord-context-control.md`（設計メモ）
