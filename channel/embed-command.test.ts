@@ -103,4 +103,19 @@ describe('runEmbedCommand', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toContain('出力が大きすぎるので止めた')
   })
+
+  // setsid で別のセッションに抜けたプロセスは止められず、標準出力が閉じない。上限超えで止めたあと、
+  // 時間切れを待たずに猶予（2 秒）で読み取りを打ち切って「出力が大きすぎる」を返す（setsid の無い macOS では飛ばす）
+  // 抜けたプロセス（sleep 6）が自分で終わるより前に返ることを見る。sleep はテストのあと数秒で自然に終わる
+  test.skipIf(!Bun.which('setsid'))(
+    'gives up reading after an overflow when an escaped process holds stdout',
+    async () => {
+      const started = Date.now()
+      const r = await runEmbedCommand(sh('setsid sleep 6 & yes | head -c 1100000'), 10_000)
+      expect(Date.now() - started).toBeLessThan(4_000)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.error).toContain('出力が大きすぎるので止めた')
+    },
+    10_000,
+  )
 })
